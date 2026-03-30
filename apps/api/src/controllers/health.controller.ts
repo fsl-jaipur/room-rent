@@ -1,0 +1,12 @@
+import type { Request, Response } from "express";
+
+import { healthSchema } from "@rent/shared";
+
+export function getHealth(_req: Request, res: Response) {
+  const payload = healthSchema.parse({
+    status: "ok",
+    service: "api"
+  });
+
+  return res.json(payload);
+}

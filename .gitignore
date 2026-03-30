@@ -1,0 +1,11 @@
+node_modules
+.turbo
+dist
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+local.settings.json
+apps/web/.next
+apps/mobile/.expo

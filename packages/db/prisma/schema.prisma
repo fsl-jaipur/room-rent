@@ -1,0 +1,21 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String @id @default(uuid()) @map("Id") @db.UniqueIdentifier
+  aadhaarNumber   String @map("AadhaarNumber") @db.VarChar(12)
+  name            String @map("Name") @db.NVarChar(255)
+  phone           String @map("Phone") @db.VarChar(20)
+  email           String @map("Email") @db.NVarChar(255)
+  localAddress    String @map("LocalAddress") @db.NVarChar(500)
+  hometownAddress String @map("HometownAddress") @db.NVarChar(500)
+  profilePhotoUrl String @map("ProfilePhotoUrl") @db.NVarChar(1000)
+
+  @@map("Users")
+}
