@@ -1,7 +1,7 @@
 # GitHub Actions workflow for deploying API to Azure App Service
 # Handles monorepo structure with shared workspace packages
 
-name: Deploy API to Azure
+name: roommate-identity
 
 on:
   push:
@@ -14,11 +14,6 @@ on:
       - 'turbo.json'
       - '.github/workflows/deploy-api.yml'
   workflow_dispatch:
-
-env:
-  NODE_VERSION: '20.x'
-  BUN_VERSION: '1.2.13'
-  AZURE_WEBAPP_NAME: 'roommate-identity'
 
 jobs:
   build-and-deploy:
@@ -36,13 +31,13 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: ${{ env.NODE_VERSION }}
+        node-version: '20.x'
         cache: 'npm'
 
     - name: Setup Bun
       uses: oven-sh/setup-bun@v1
       with:
-        bun-version: ${{ env.BUN_VERSION }}
+        bun-version: '1.2.13'
 
     - name: Install workspace dependencies
       run: |
@@ -52,7 +47,7 @@ jobs:
     - name: Build shared packages
       run: |
         echo "Generating Prisma client..."
-        bun run prisma:generate --filter=@rent/db
+        bun run --filter=@rent/db prisma:generate
         echo "Building shared packages..."
         bun run build --filter=@rent/config
         bun run build --filter=@rent/db
@@ -63,61 +58,32 @@ jobs:
         echo "Building API application..."
         bun run build --filter=@rent/api
 
-    - name: Create deployment package
+    - name: Create optimized deployment package
       run: |
-        echo "Creating deployment package..."
-        mkdir -p deployment
+        echo "Creating lightweight deployment package..."
         
-        # Copy root files needed for workspace resolution
-        cp package.json deployment/
-        cp turbo.json deployment/
+        # Create a minimal deployment with just what's needed
+        mkdir -p deploy/apps/api deploy/packages
         
-        # Copy all apps and packages to maintain workspace structure
-        cp -r apps deployment/
-        cp -r packages deployment/
+        # Copy API source and built files
+        cp -r apps/api/* deploy/apps/api/
         
-        # Copy node_modules (contains workspace-linked packages)
-        cp -r node_modules deployment/
+        # Copy built packages (not source)
+        cp -r packages/config/dist deploy/packages/config/ 2>/dev/null || cp -r packages/config deploy/packages/
+        cp -r packages/db/dist deploy/packages/db/ 2>/dev/null || cp -r packages/db deploy/packages/
+        cp -r packages/shared/dist deploy/packages/shared/ 2>/dev/null || cp -r packages/shared deploy/packages/
         
-        # Create startup script for Azure
-        cat > deployment/startup.sh << 'EOF'
-        #!/bin/bash
-        echo "Starting API server from apps/api directory..."
-        cd apps/api
-        bun start
-        EOF
-        chmod +x deployment/startup.sh
+        # Copy essential workspace files
+        cp package.json deploy/
         
-        # Create web.config for Azure (if needed)
-        cat > deployment/web.config << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <configuration>
-          <system.webServer>
-            <handlers>
-              <add name="iisnode" path="apps/api/src/index.ts" verb="*" modules="iisnode"/>
-            </handlers>
-            <rewrite>
-              <rules>
-                <rule name="NodeInspector" patternSyntax="ECMAScript" stopProcessing="true">
-                  <match url="^apps/api/src/index.ts\/debug[\/]?" />
-                </rule>
-                <rule name="StaticContent">
-                  <action type="Rewrite" url="public{REQUEST_URI}"/>
-                </rule>
-                <rule name="DynamicContent">
-                  <conditions>
-                    <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="True"/>
-                  </conditions>
-                  <action type="Rewrite" url="apps/api/src/index.ts"/>
-                </rule>
-              </rules>
-            </rewrite>
-          </system.webServer>
-        </configuration>
-        EOF
+        # Copy only essential node_modules dependencies
+        mkdir -p deploy/node_modules
+        cp -r node_modules/@prisma deploy/node_modules/ 2>/dev/null || true
+        cp -r node_modules/.prisma deploy/node_modules/ 2>/dev/null || true
+        cp -r node_modules/@rent deploy/node_modules/ 2>/dev/null || true
         
-        echo "Deployment package created successfully"
-        ls -la deployment/
+        echo "Package size:"
+        du -sh deploy/ || echo "Size check failed"
 
     - name: Login to Azure
       uses: azure/login@v2
@@ -126,14 +92,15 @@ jobs:
         tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_37EB6F02C56646B4BF143A25D3BF65A8 }}
         subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_6B76E983A1BF4A9B8D0345FC5AE1431C }}
 
-    - name: Deploy to Azure Web App
+    - name: 'Deploy to Azure Web App'
+      id: deploy-to-webapp
       uses: azure/webapps-deploy@v3
       with:
-        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        app-name: 'roommate-identity'
         slot-name: 'Production'
-        package: './deployment'
+        package: './deploy'
 
-    - name: Check deployment status
+    - name: Deployment complete
       run: |
-        echo "Deployment completed!"
-        echo "API should be available at: https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+        echo "✅ Deployment completed successfully!"
+        echo "🚀 API available at: https://roommate-identity.azurewebsites.net"
