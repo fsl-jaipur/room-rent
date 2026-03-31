@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+﻿import { Prisma, PrismaClient } from "@prisma/client";
 
 import { getRequiredSetting } from "@rent/config";
 import type { PropertyInput, UserInput } from "@rent/shared";
@@ -278,6 +278,8 @@ export async function createProperty(property: PropertyInput) {
         VALUES (${propertyId}, ${roomId}, ${imageUrl}, ${index === 0 ? 1 : 0}, GETUTCDATE())
       `;
     }
+
+    return { propertyId, roomId };
   });
 }
 
