@@ -1,7 +1,7 @@
 # GitHub Actions workflow for deploying API to Azure App Service
 # Handles monorepo structure with shared workspace packages
 
-name: Deploy API to Azure
+name: roommate-identity
 
 on:
   push:
@@ -15,125 +15,68 @@ on:
       - '.github/workflows/deploy-api.yml'
   workflow_dispatch:
 
-env:
-  NODE_VERSION: '20.x'
-  BUN_VERSION: '1.2.13'
-  AZURE_WEBAPP_NAME: 'roommate-identity'
-
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      id-token: write
+      contents: read #This is required for actions/checkout
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
+      - name: Set up Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
 
-    - name: Setup Bun
-      uses: oven-sh/setup-bun@v1
-      with:
-        bun-version: ${{ env.BUN_VERSION }}
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: '1.2.13'
 
-    - name: Install workspace dependencies
-      run: |
-        echo "Installing dependencies from workspace root..."
-        bun install --frozen-lockfile
+      - name: Install dependencies and build
+        run: |
+          echo "Installing dependencies from workspace root..."
+          bun install --frozen-lockfile
+          echo "Generating Prisma client..."
+          bun run --filter=@rent/db prisma:generate
+          echo "Building shared packages..."
+          bun run build --filter=@rent/config
+          bun run build --filter=@rent/db
+          bun run build --filter=@rent/shared
+          echo "Building API application..."
+          bun run build --filter=@rent/api
 
-    - name: Build shared packages
-      run: |
-        echo "Generating Prisma client..."
-        bun run prisma:generate --filter=@rent/db
-        echo "Building shared packages..."
-        bun run build --filter=@rent/config
-        bun run build --filter=@rent/db
-        bun run build --filter=@rent/shared
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-app
+          path: .
 
-    - name: Build API
-      run: |
-        echo "Building API application..."
-        bun run build --filter=@rent/api
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      id-token: write #This is required for requesting the JWT
+      contents: read #This is required for actions/checkout
 
-    - name: Create deployment package
-      run: |
-        echo "Creating deployment package..."
-        mkdir -p deployment
-        
-        # Copy root files needed for workspace resolution
-        cp package.json deployment/
-        cp turbo.json deployment/
-        
-        # Copy all apps and packages to maintain workspace structure
-        cp -r apps deployment/
-        cp -r packages deployment/
-        
-        # Copy node_modules (contains workspace-linked packages)
-        cp -r node_modules deployment/
-        
-        # Create startup script for Azure
-        cat > deployment/startup.sh << 'EOF'
-        #!/bin/bash
-        echo "Starting API server from apps/api directory..."
-        cd apps/api
-        bun start
-        EOF
-        chmod +x deployment/startup.sh
-        
-        # Create web.config for Azure (if needed)
-        cat > deployment/web.config << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <configuration>
-          <system.webServer>
-            <handlers>
-              <add name="iisnode" path="apps/api/src/index.ts" verb="*" modules="iisnode"/>
-            </handlers>
-            <rewrite>
-              <rules>
-                <rule name="NodeInspector" patternSyntax="ECMAScript" stopProcessing="true">
-                  <match url="^apps/api/src/index.ts\/debug[\/]?" />
-                </rule>
-                <rule name="StaticContent">
-                  <action type="Rewrite" url="public{REQUEST_URI}"/>
-                </rule>
-                <rule name="DynamicContent">
-                  <conditions>
-                    <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="True"/>
-                  </conditions>
-                  <action type="Rewrite" url="apps/api/src/index.ts"/>
-                </rule>
-              </rules>
-            </rewrite>
-          </system.webServer>
-        </configuration>
-        EOF
-        
-        echo "Deployment package created successfully"
-        ls -la deployment/
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: node-app
+      
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_CBE43717B6C14EA69FA03AB605145364 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_37EB6F02C56646B4BF143A25D3BF65A8 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_6B76E983A1BF4A9B8D0345FC5AE1431C }}
 
-    - name: Login to Azure
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_CBE43717B6C14EA69FA03AB605145364 }}
-        tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_37EB6F02C56646B4BF143A25D3BF65A8 }}
-        subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_6B76E983A1BF4A9B8D0345FC5AE1431C }}
-
-    - name: Deploy to Azure Web App
-      uses: azure/webapps-deploy@v3
-      with:
-        app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        slot-name: 'Production'
-        package: './deployment'
-
-    - name: Check deployment status
-      run: |
-        echo "Deployment completed!"
-        echo "API should be available at: https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+      - name: 'Deploy to Azure Web App'
+        id: deploy-to-webapp
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'roommate-identity'
+          slot-name: 'Production'
+          package: .
