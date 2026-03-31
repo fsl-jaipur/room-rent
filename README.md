@@ -26,6 +26,8 @@
 ## API
 - Health endpoint: `GET http://localhost:4000/health`
 - Create user: `POST http://localhost:4000/users`
+- Swagger UI: `GET http://localhost:4000/docs`
+- OpenAPI JSON: `GET http://localhost:4000/docs.json`
 
 ### User Request Body
 ```json
@@ -39,5 +41,6 @@
   "profilePhotoUrl": "https://example.com/photo.jpg"
 }
 ```
+
 
 

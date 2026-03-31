@@ -1,7 +1,7 @@
 ﻿import { PrismaClient } from "@prisma/client";
 
 import { getRequiredSetting } from "@rent/config";
-import type { UserInput } from "@rent/shared";
+import type { UsersInput } from "@rent/shared";
 
 let prisma: PrismaClient | null = null;
 
@@ -27,18 +27,19 @@ export async function pingDb() {
   return db.$queryRaw`SELECT 1 AS ok`;
 }
 
-export async function saveUser(user: UserInput) {
+export async function saveUsers(Users: UsersInput) {
   const db = getDbClient();
 
-  await db.user.create({
+  await db.Users.create({
     data: {
-      aadhaarNumber: user.aadhaarNumber,
-      name: user.name,
-      phone: user.phone,
-      email: user.email,
-      localAddress: user.localAddress,
-      hometownAddress: user.hometownAddress,
-      profilePhotoUrl: user.profilePhotoUrl
+      userName: Users.UsersName,
+      phone: Users.phone,
+      userEmail: Users.UsersEmail,
+      aadhaarNumber: Users.aadhaarNumber,
+      localAddress: Users.localAddress,
+      hometownAddress: Users.hometownAddress,
+      profilePhotoUrl: Users.profilePhotoUrl,
+      isActive: true
     }
   });
 }

@@ -12,8 +12,10 @@
     "@rent/config": "file:../../packages/config",
     "@rent/db": "file:../../packages/db",
     "@rent/shared": "file:../../packages/shared",
+    "@types/swagger-ui-express": "^4.1.8",
     "cors": "^2.8.5",
-    "express": "^4.21.1"
+    "express": "^4.21.1",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

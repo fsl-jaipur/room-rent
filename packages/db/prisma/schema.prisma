@@ -7,15 +7,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id              String @id @default(uuid()) @map("Id") @db.UniqueIdentifier
-  aadhaarNumber   String @map("AadhaarNumber") @db.VarChar(12)
-  name            String @map("Name") @db.NVarChar(255)
-  phone           String @map("Phone") @db.VarChar(20)
-  email           String @map("Email") @db.NVarChar(255)
-  localAddress    String @map("LocalAddress") @db.NVarChar(500)
-  hometownAddress String @map("HometownAddress") @db.NVarChar(500)
-  profilePhotoUrl String @map("ProfilePhotoUrl") @db.NVarChar(1000)
+model Users {
+  userId          String   @id @default(uuid()) @map("UserId") @db.UniqueIdentifier
+  userName        String   @map("UserName") @db.NVarChar(255)
+  phone           String   @map("Phone") @db.VarChar(20)
+  userEmail       String   @map("UserEmail") @db.NVarChar(255)
+  aadhaarNumber   String   @map("AadhaarNumber") @db.VarChar(12)
+  localAddress    String   @map("LocalAddress") @db.NVarChar(500)
+  hometownAddress String   @map("HometownAddress") @db.NVarChar(500)
+  profilePhotoUrl String   @map("ProfilePhotoUrl") @db.NVarChar(1000)
+  isActive        Boolean? @map("IsActive")
+  createdAt       DateTime? @map("CreatedAt")
+  createdBy       String?  @map("CreatedBy") @db.NVarChar(255)
+  updatedAt       DateTime? @map("UpdatedAt")
+  updatedBy       String?  @map("UpdatedBy") @db.NVarChar(255)
 
   @@map("Users")
 }

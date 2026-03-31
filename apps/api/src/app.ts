@@ -1,7 +1,9 @@
 import cors from "cors";
 import express from "express";
+import swaggerUi from "swagger-ui-express";
 
 import { getSetting } from "@rent/config";
+import { swaggerDocument } from "./swagger";
 import { errorHandler } from "./middlewares/error.middleware";
 import { healthRouter } from "./routes/health.routes";
 import { userRouter } from "./routes/user.routes";
@@ -16,6 +18,9 @@ export function createApp() {
     })
   );
   app.use(express.json());
+
+  app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  app.get("/docs.json", (_req, res) => res.json(swaggerDocument));
 
   app.use(healthRouter);
   app.use(userRouter);

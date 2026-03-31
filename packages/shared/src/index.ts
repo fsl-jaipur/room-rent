@@ -6,9 +6,9 @@ export const healthSchema = z.object({
 });
 
 export const userSchema = z.object({
-  name: z.string().trim().min(1, "name is required"),
-  phone: z.string().trim().regex(/^\d{10}$/, "phone must be exactly 10 digits"),
-  email: z.string().trim().email("email must be valid"),
+  userName: z.string().trim().min(1, "userName is required"),
+  phone: z.string().trim().regex(/^\+?\d{10,15}$/, "phone must be 10-15 digits and may start with +"),
+  userEmail: z.string().trim().email("userEmail must be valid"),
   aadhaarNumber: z
     .string()
     .trim()
