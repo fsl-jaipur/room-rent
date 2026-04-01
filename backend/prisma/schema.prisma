@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model FloorLevels {
+  FloorLevelId Int             @id @default(autoincrement()) @map("FloorLevelId")
+  FloorName    String          @db.NVarChar(50) @map("FloorName")
+  Listings     Listings[]
+  SavedSearches SavedSearches[]
+  @@map("FloorLevels")
+}
+
+model FoodPreferences {
+  FoodPreferenceId Int             @id @default(autoincrement()) @map("FoodPreferenceId")
+  PreferenceName   String          @db.NVarChar(50) @map("PreferenceName")
+  Listings         Listings[]
+  SavedSearches    SavedSearches[]
+  @@map("FoodPreferences")
+}
+
+model FurnishingTypes {
+  FurnishingTypeId Int             @id @default(autoincrement()) @map("FurnishingTypeId")
+  FurnishingName   String          @db.NVarChar(50) @map("FurnishingName")
+  Listings         Listings[]
+  SavedSearches    SavedSearches[]
+  @@map("FurnishingTypes")
+}
+
+model ListingStatuses {
+  StatusId   Int        @id @default(autoincrement()) @map("StatusId")
+  StatusName String     @db.NVarChar(50) @map("StatusName")
+  Listings   Listings[]
+  @@map("ListingStatuses")
+}
+
+model Users {
+  UserId           String    @id @default(uuid()) @db.UniqueIdentifier @map("UserId")
+  Role             String    @db.NVarChar(20) @map("Role")
+  FullName         String    @db.NVarChar(255) @map("FullName")
+  Email            String    @unique @db.NVarChar(255) @map("Email")
+  Phone            String    @unique @db.VarChar(20) @map("Phone")
+  PasswordHash     String    @db.NVarChar(500) @map("PasswordHash")
+  AadhaarEncrypted String?   @db.NVarChar(500) @map("AadhaarEncrypted")
+  AadhaarHash      String?   @db.NVarChar(255) @map("AadhaarHash")
+  PermanentAddress String?   @db.NVarChar(500) @map("PermanentAddress")
+  City             String?   @db.NVarChar(100) @map("City")
+  State            String?   @db.NVarChar(100) @map("State")
+  Pincode          String?   @db.VarChar(10) @map("Pincode")
+  PhotoUrl         String?   @db.NVarChar(1000) @map("PhotoUrl")
+  Location         String?   @db.NVarChar(255) @map("Location")
+  IsVerified       Boolean   @default(false) @map("IsVerified")
+  IsActive         Boolean   @default(true) @map("IsActive")
+  CreatedAt        DateTime  @default(now()) @map("CreatedAt")
+  UpdatedAt        DateTime  @updatedAt @map("UpdatedAt")
+
+  ListingsAsLandlord Listings[]        @relation("LandlordListings")
+  ContactRequests    ContactRequests[] @relation("TenantContactRequests")
+  ReceivedRequests   ContactRequests[] @relation("LandlordContactRequests")
+  Favorites          Favorites[]
+  SavedSearches      SavedSearches[]
+  
+  @@map("Users")
+}
+
+model Listings {
+  ListingId        Int      @id @default(autoincrement()) @map("ListingId")
+  LandlordId       String   @db.UniqueIdentifier @map("LandlordId")
+  Title            String   @db.NVarChar(255) @map("Title")
+  Description      String?  @db.NVarChar(Max) @map("Description")
+  FloorLevelId     Int?     @map("FloorLevelId")
+  FurnishingTypeId Int?     @map("FurnishingTypeId")
+  MaxOccupants     Int?     @map("MaxOccupants")
+  AllowSmoking     Boolean  @default(false) @map("AllowSmoking")
+  FoodPreferenceId Int?     @map("FoodPreferenceId")
+  MonthlyRent      Decimal  @db.Decimal(10, 2) @map("MonthlyRent")
+  SecurityDeposit  Decimal  @db.Decimal(10, 2) @map("SecurityDeposit")
+  AvailableFrom    DateTime @map("AvailableFrom")
+  AddressLine      String   @db.NVarChar(500) @map("AddressLine")
+  Colony           String   @db.NVarChar(255) @map("Colony")
+  City             String   @db.NVarChar(100) @map("City")
+  State            String   @db.NVarChar(100) @map("State")
+  Pincode          String   @db.VarChar(10) @map("Pincode")
+  Latitude         Float?   @map("Latitude")
+  Longitude        Float?   @map("Longitude")
+  StatusId         Int      @default(1) @map("StatusId")
+  CreatedAt        DateTime @default(now()) @map("CreatedAt")
+  UpdatedAt        DateTime @updatedAt @map("UpdatedAt")
+
+  Landlord         Users            @relation("LandlordListings", fields: [LandlordId], references: [UserId], onDelete: NoAction, onUpdate: NoAction)
+  FloorLevel       FloorLevels?     @relation(fields: [FloorLevelId], references: [FloorLevelId], onDelete: NoAction, onUpdate: NoAction)
+  FurnishingType   FurnishingTypes? @relation(fields: [FurnishingTypeId], references: [FurnishingTypeId], onDelete: NoAction, onUpdate: NoAction)
+  FoodPreference   FoodPreferences? @relation(fields: [FoodPreferenceId], references: [FoodPreferenceId], onDelete: NoAction, onUpdate: NoAction)
+  Status           ListingStatuses  @relation(fields: [StatusId], references: [StatusId], onDelete: NoAction, onUpdate: NoAction)
+  
+  Photos           ListingPhotos[]
+  ContactRequests  ContactRequests[]
+  Favorites        Favorites[]
+
+  @@map("Listings")
+}
+
+model ListingPhotos {
+  PhotoId      Int      @id @default(autoincrement()) @map("PhotoId")
+  ListingId    Int      @map("ListingId")
+  PhotoType    String   @db.NVarChar(50) @map("PhotoType")
+  PhotoUrl     String   @db.NVarChar(1000) @map("PhotoUrl")
+  DisplayOrder Int      @default(0) @map("DisplayOrder")
+  UploadedAt   DateTime @default(now()) @map("UploadedAt")
+
+  Listing      Listings @relation(fields: [ListingId], references: [ListingId], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("ListingPhotos")
+}
+
+model ContactRequests {
+  RequestId   Int      @id @default(autoincrement()) @map("RequestId")
+  TenantId    String   @db.UniqueIdentifier @map("TenantId")
+  ListingId   Int      @map("ListingId")
+  LandlordId  String   @db.UniqueIdentifier @map("LandlordId")
+  Message     String?  @db.NVarChar(1000) @map("Message")
+  Status      String   @default("Pending") @db.NVarChar(20) @map("Status")
+  CreatedAt   DateTime @default(now()) @map("CreatedAt")
+  RespondedAt DateTime? @map("RespondedAt")
+
+  Tenant      Users    @relation("TenantContactRequests", fields: [TenantId], references: [UserId], onDelete: NoAction, onUpdate: NoAction)
+  Landlord    Users    @relation("LandlordContactRequests", fields: [LandlordId], references: [UserId], onDelete: NoAction, onUpdate: NoAction)
+  Listing     Listings @relation(fields: [ListingId], references: [ListingId], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("ContactRequests")
+}
+
+model Favorites {
+  FavoriteId Int      @id @default(autoincrement()) @map("FavoriteId")
+  TenantId   String   @db.UniqueIdentifier @map("TenantId")
+  ListingId  Int      @map("ListingId")
+  CreatedAt  DateTime @default(now()) @map("CreatedAt")
+
+  Tenant     Users    @relation(fields: [TenantId], references: [UserId], onDelete: NoAction, onUpdate: NoAction)
+  Listing    Listings @relation(fields: [ListingId], references: [ListingId], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([TenantId, ListingId])
+  @@map("Favorites")
+}
+
+model SavedSearches {
+  SearchId         Int      @id @default(autoincrement()) @map("SearchId")
+  TenantId         String   @db.UniqueIdentifier @map("TenantId")
+  SearchName       String   @db.NVarChar(100) @map("SearchName")
+  Colony           String?  @db.NVarChar(255) @map("Colony")
+  MinRent          Decimal? @db.Decimal(10, 2) @map("MinRent")
+  MaxRent          Decimal? @db.Decimal(10, 2) @map("MaxRent")
+  MaxOccupants     Int?     @map("MaxOccupants")
+  FloorLevelId     Int?     @map("FloorLevelId")
+  FurnishingTypeId Int?     @map("FurnishingTypeId")
+  AllowSmoking     Boolean? @map("AllowSmoking")
+  FoodPreferenceId Int?     @map("FoodPreferenceId")
+  RadiusKm         Float?   @map("RadiusKm")
+  CenterLatitude   Float?   @map("CenterLatitude")
+  CenterLongitude  Float?   @map("CenterLongitude")
+  CreatedAt        DateTime @default(now()) @map("CreatedAt")
+
+  Tenant           Users            @relation(fields: [TenantId], references: [UserId], onDelete: NoAction, onUpdate: NoAction)
+  FloorLevel       FloorLevels?     @relation(fields: [FloorLevelId], references: [FloorLevelId], onDelete: NoAction, onUpdate: NoAction)
+  FurnishingType   FurnishingTypes? @relation(fields: [FurnishingTypeId], references: [FurnishingTypeId], onDelete: NoAction, onUpdate: NoAction)
+  FoodPreference   FoodPreferences? @relation(fields: [FoodPreferenceId], references: [FoodPreferenceId], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("SavedSearches")
+}
