@@ -1,11 +1,13 @@
-node_modules
-.turbo
-dist
+# OS
 .DS_Store
+Thumbs.db
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Misc
 *.log
-.env
-.env.*
-!.env.example
-local.settings.json
-apps/web/.next
-apps/mobile/.expo
+
+node_modules
