@@ -7,7 +7,7 @@ name: Deploy Node.js Express API
 on:
   push:
     branches:
-      - Reactcode
+      - ReactCode
     paths:
       - 'backend/**'
       - '.github/workflows/deploy-api.yml'
