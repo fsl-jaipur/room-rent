@@ -52,12 +52,14 @@ function getDbClient() {
   return prisma;
 }
 
-function getConflictFields(existing: { userEmail: string; phone: string; aadhaarNumber: string }, user: UserInput) {
+function getConflictFields(
+  existing: { Email: string; Phone: string },
+  user: Pick<UserInput, "Email" | "Phone">
+) {
   const conflicts: string[] = [];
 
-  if (existing.userEmail === user.userEmail) conflicts.push("email");
-  if (existing.phone === user.phone) conflicts.push("phone");
-  if (existing.aadhaarNumber === user.aadhaarNumber) conflicts.push("aadhaarNumber");
+  if (existing.Email === user.Email) conflicts.push("Email");
+  if (existing.Phone === user.Phone) conflicts.push("Phone");
 
   return conflicts;
 }
@@ -71,21 +73,21 @@ export async function getUserById(userId: string) {
   const db = getDbClient();
 
   const user = await db.users.findUnique({
-    where: { userId },
+    where: { UserId: userId },
     select: {
-      userId: true,
-      userName: true,
-      phone: true,
-      userEmail: true,
-      aadhaarNumber: true,
-      localAddress: true,
-      hometownAddress: true,
-      profilePhotoUrl: true,
-      isActive: true,
-      createdAt: true,
-      createdBy: true,
-      updatedAt: true,
-      updatedBy: true
+      UserId: true,
+      Role: true,
+      FullName: true,
+      Email: true,
+      Phone: true,
+      City: true,
+      State: true,
+      Pincode: true,
+      PhotoUrl: true,
+      IsVerified: true,
+      IsActive: true,
+      CreatedAt: true,
+      UpdatedAt: true
     }
   });
 
@@ -101,9 +103,9 @@ export async function saveUser(user: UserInput) {
 
   const existing = await db.users.findFirst({
     where: {
-      OR: [{ userEmail: user.userEmail }, { phone: user.phone }, { aadhaarNumber: user.aadhaarNumber }]
+      OR: [{ Email: user.Email }, { Phone: user.Phone }]
     },
-    select: { userEmail: true, phone: true, aadhaarNumber: true }
+    select: { Email: true, Phone: true }
   });
 
   if (existing) {
@@ -113,19 +115,20 @@ export async function saveUser(user: UserInput) {
   try {
     await db.users.create({
       data: {
-        userName: user.userName,
-        phone: user.phone,
-        userEmail: user.userEmail,
-        aadhaarNumber: user.aadhaarNumber,
-        localAddress: user.localAddress,
-        hometownAddress: user.hometownAddress,
-        profilePhotoUrl: user.profilePhotoUrl,
-        isActive: true
+        Role: user.Role,
+        FullName: user.FullName,
+        Email: user.Email,
+        Phone: user.Phone,
+        PasswordHash: user.PasswordHash,
+        City: user.City ?? null,
+        State: user.State ?? null,
+        Pincode: user.Pincode ?? null,
+        IsActive: true
       }
     });
   } catch (error) {
     if (isPrismaErrorWithCode(error) && error.code === "P2002") {
-      throw new DuplicateUserError(["email, phone, or aadhaarNumber"]);
+      throw new DuplicateUserError(["Email or Phone"]);
     }
 
     throw error;
@@ -136,8 +139,8 @@ export async function updateUser(userId: string, user: UserInput) {
   const db = getDbClient();
 
   const existingUser = await db.users.findUnique({
-    where: { userId },
-    select: { userId: true }
+    where: { UserId: userId },
+    select: { UserId: true }
   });
 
   if (!existingUser) {
@@ -146,10 +149,10 @@ export async function updateUser(userId: string, user: UserInput) {
 
   const conflictingUser = await db.users.findFirst({
     where: {
-      userId: { not: userId },
-      OR: [{ userEmail: user.userEmail }, { phone: user.phone }, { aadhaarNumber: user.aadhaarNumber }]
+      UserId: { not: userId },
+      OR: [{ Email: user.Email }, { Phone: user.Phone }]
     },
-    select: { userEmail: true, phone: true, aadhaarNumber: true }
+    select: { Email: true, Phone: true }
   });
 
   if (conflictingUser) {
@@ -158,22 +161,23 @@ export async function updateUser(userId: string, user: UserInput) {
 
   try {
     await db.users.update({
-      where: { userId },
+      where: { UserId: userId },
       data: {
-        userName: user.userName,
-        phone: user.phone,
-        userEmail: user.userEmail,
-        aadhaarNumber: user.aadhaarNumber,
-        localAddress: user.localAddress,
-        hometownAddress: user.hometownAddress,
-        profilePhotoUrl: user.profilePhotoUrl,
-        isActive: true
+        Role: user.Role,
+        FullName: user.FullName,
+        Email: user.Email,
+        Phone: user.Phone,
+        PasswordHash: user.PasswordHash,
+        City: user.City ?? null,
+        State: user.State ?? null,
+        Pincode: user.Pincode ?? null,
+        IsActive: true
       }
     });
   } catch (error) {
     if (isPrismaErrorWithCode(error)) {
       if (error.code === "P2002") {
-        throw new DuplicateUserError(["email, phone, or aadhaarNumber"]);
+        throw new DuplicateUserError(["Email or Phone"]);
       }
 
       if (error.code === "P2025") {

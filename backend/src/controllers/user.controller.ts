@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { createUserRecord, getUserRecord, updateUserRecord } from "../services/user.service";
-import { userSchema } from "../shared/schema";
+import { userIdParamSchema, userSchema } from "../shared/schema";
 import { z } from "zod";
 
 export async function createUser(req: Request, res: Response, next: NextFunction) {
@@ -22,7 +22,7 @@ export async function createUser(req: Request, res: Response, next: NextFunction
 
 export async function getUser(req: Request, res: Response, next: NextFunction) {
   try {
-    const userId = req.params.userId;
+    const { userId } = userIdParamSchema.parse(req.params);
     const user = await getUserRecord(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -37,7 +37,7 @@ export async function getUser(req: Request, res: Response, next: NextFunction) {
 
 export async function updateUser(req: Request, res: Response, next: NextFunction) {
   try {
-    const userId = req.params.userId;
+    const { userId } = userIdParamSchema.parse(req.params);
     const validatedData = userSchema.partial().parse(req.body);
 
     const updatedUser = await updateUserRecord(userId, validatedData);

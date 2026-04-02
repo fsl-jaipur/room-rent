@@ -1,6 +1,13 @@
 import type { NextFunction, Request, Response } from "express";
 
-import type { PropertyIdParam, PropertyInput, PropertyQuery } from "../shared/schema";
+import {
+  propertyIdParamSchema,
+  propertyQuerySchema,
+  propertySchema,
+  type PropertyIdParam,
+  type PropertyInput,
+  type PropertyQuery
+} from "../shared/schema";
 import {
   createPropertyRecord,
   deletePropertyRecord,
@@ -12,7 +19,7 @@ import {
 
 export async function createProperty(req: Request, res: Response, next: NextFunction) {
   try {
-    const property = req.body as PropertyInput;
+    const property = propertySchema.parse(req.body) as PropertyInput;
     await createPropertyRecord(property);
 
     return res.status(201).json({
@@ -38,7 +45,7 @@ export async function getPropertyMetadata(_req: Request, res: Response, next: Ne
 
 export async function listProperties(req: Request, res: Response, next: NextFunction) {
   try {
-    const { userId } = req.query as PropertyQuery;
+    const { userId } = propertyQuerySchema.parse(req.query) as PropertyQuery;
     const properties = await listPropertyRecords(userId);
 
     return res.status(200).json({
@@ -52,7 +59,7 @@ export async function listProperties(req: Request, res: Response, next: NextFunc
 
 export async function getProperty(req: Request, res: Response, next: NextFunction) {
   try {
-    const { propertyId } = req.params as PropertyIdParam;
+    const { propertyId } = propertyIdParamSchema.parse(req.params) as PropertyIdParam;
     const property = await getPropertyRecord(propertyId);
 
     return res.status(200).json({
@@ -66,8 +73,8 @@ export async function getProperty(req: Request, res: Response, next: NextFunctio
 
 export async function updateProperty(req: Request, res: Response, next: NextFunction) {
   try {
-    const { propertyId } = req.params as PropertyIdParam;
-    const property = req.body as PropertyInput;
+    const { propertyId } = propertyIdParamSchema.parse(req.params) as PropertyIdParam;
+    const property = propertySchema.parse(req.body) as PropertyInput;
 
     await updatePropertyRecord(propertyId, property);
 
@@ -81,7 +88,7 @@ export async function updateProperty(req: Request, res: Response, next: NextFunc
 
 export async function deleteProperty(req: Request, res: Response, next: NextFunction) {
   try {
-    const { propertyId } = req.params as PropertyIdParam;
+    const { propertyId } = propertyIdParamSchema.parse(req.params) as PropertyIdParam;
     await deletePropertyRecord(propertyId);
 
     return res.status(200).json({
