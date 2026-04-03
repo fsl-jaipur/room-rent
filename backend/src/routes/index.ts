@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import listingsRoutes from "./listings.routes";
+import authRoutes from "./auth.routes";
 
 const router = Router();
 
@@ -14,6 +15,7 @@ router.get("/health", (_req, res) => {
 });
 
 // Register route modules here
+router.use("/auth", authRoutes);
 router.use("/listings", listingsRoutes);
 
 export default router;

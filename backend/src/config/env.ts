@@ -12,6 +12,9 @@ export const env = {
 
   // External APIs
   GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY || "",
+
+  // Auth
+  JWT_SECRET: process.env.JWT_SECRET || "default_development_secret_key_change_in_prod",
 } as const;
 
 export default env;

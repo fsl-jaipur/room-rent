@@ -22,6 +22,7 @@ export default function AddListing() {
   const navigate = useNavigate();
   const [step, setStep] = useState<1 | 2 | 3>(1); // 1: Location, 2: Rooms, 3: Success
   const [location, setLocation] = useState<LocationState | null>(null);
+  const [address, setAddress] = useState<string>('');
   const [isLocating, setIsLocating] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,6 +56,7 @@ export default function AddListing() {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude
         });
+        setAddress(''); // Clear plain english address
         setIsLocating(false);
         setStep(2);
       },
@@ -65,6 +67,16 @@ export default function AddListing() {
       },
       { enableHighAccuracy: true }
     );
+  };
+
+  const handleManualLocation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (address.trim().length > 5) {
+      setLocation(null); // Clear coords to rely strictly on address forward-geocoding
+      setStep(2);
+    } else {
+      setErrorMsg('Please enter a full, valid address');
+    }
   };
 
   const handleAddRoom = () => {
@@ -93,7 +105,7 @@ export default function AddListing() {
   };
 
   const handleSubmit = async () => {
-    if (!location) return;
+    if (!location && !address) return;
     setIsSubmitting(true);
     setErrorMsg('');
 
@@ -105,13 +117,14 @@ export default function AddListing() {
       const url = `http://localhost:5000/api/listings${isBulk ? '/bulk' : ''}`;
       
       const body = isBulk 
-        ? { location, rooms: payloadRooms }
-        : { location, room: payloadRooms[0] };
+        ? { location, address, rooms: payloadRooms }
+        : { location, address, room: payloadRooms[0] };
 
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        credentials: "include"
       });
 
       const data = await res.json();
@@ -134,20 +147,45 @@ export default function AddListing() {
       
       {/* STEP 1: LOCATION */}
       {step === 1 && (
-        <div className="glass-card text-center">
-          <h2>Where is your property located?</h2>
-          <p className="mb-4">We'll precisely pinpoint your location to help tenants find you easily.</p>
+        <div className="glass-card text-center text-left">
+          <h2 className="text-center">Where is your property located?</h2>
+          <p className="mb-4 text-center">We'll precisely pinpoint your location to help tenants find you easily.</p>
           
-          <button 
-            className="btn btn-primary" 
-            onClick={handleFetchLocation}
-            disabled={isLocating}
-          >
-            <MapPin size={20} />
-            {isLocating ? 'Locating...' : 'Fetch My Location'}
-          </button>
+          <div className="text-center mb-4">
+            <button 
+              className="btn btn-primary" 
+              onClick={handleFetchLocation}
+              disabled={isLocating}
+            >
+              <MapPin size={20} />
+              {isLocating ? 'Locating...' : 'Fetch My Location'}
+            </button>
+          </div>
+
+          <div style={{ margin: '2rem 0', display: 'flex', alignItems: 'center', color: 'var(--text-muted)' }}>
+            <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }}></div>
+            <span style={{ padding: '0 1rem', fontSize: '0.9rem' }}>OR ENTER MANUALLY</span>
+            <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }}></div>
+          </div>
+
+          <form onSubmit={handleManualLocation} className="flex-col" style={{ maxWidth: '400px', margin: '0 auto' }}>
+            <div className="form-group" style={{ textAlign: 'left' }}>
+              <label>Full Property Address</label>
+              <textarea 
+                className="input-style" 
+                placeholder="e.g. Plot No 24, Near SBI Bank, Malviya Nagar, Jaipur, Rajasthan 302017"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                rows={3}
+                required 
+              />
+            </div>
+            <button type="submit" className="btn btn-outline" style={{ width: '100%' }}>
+              Confirm Address
+            </button>
+          </form>
           
-          {errorMsg && <p className="mt-4" style={{ color: '#ef4444' }}>{errorMsg}</p>}
+          {errorMsg && <p className="mt-4 text-center" style={{ color: '#ef4444' }}>{errorMsg}</p>}
         </div>
       )}
 

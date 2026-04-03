@@ -16,10 +16,10 @@ export const createSingleListing = async (
       return;
     }
 
-    const { location: coords, room } = req.body;
+    const { location: coords, address, room } = req.body;
 
-    if (!coords || !coords.latitude || !coords.longitude) {
-      res.status(400).json({ error: "Location coordinates are required" });
+    if (!coords && !address) {
+      res.status(400).json({ error: "Either Location coordinates or an Address string are required" });
       return;
     }
     if (!room) {
@@ -27,17 +27,27 @@ export const createSingleListing = async (
       return;
     }
 
-    // 1. Reverse Geocode
-    const parsedAddress = await GoogleMapsService.reverseGeocode(
-      coords.latitude,
-      coords.longitude
-    );
-
-    const fullLocation = {
-      ...parsedAddress,
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-    };
+    let fullLocation;
+    if (coords && coords.latitude && coords.longitude) {
+      // 1A. Reverse Geocode from coords
+      const parsedAddress = await GoogleMapsService.reverseGeocode(coords.latitude, coords.longitude);
+      fullLocation = {
+        ...parsedAddress,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      };
+    } else if (address) {
+      // 1B. Forward Geocode from string
+      const forwardData = await GoogleMapsService.forwardGeocode(address);
+      fullLocation = {
+        ...forwardData.parsed,
+        latitude: forwardData.latitude,
+        longitude: forwardData.longitude,
+      };
+    } else {
+      res.status(400).json({ error: "Invalid location format" });
+      return;
+    }
 
     // 2. Create Listing
     const payload = {
@@ -69,10 +79,10 @@ export const createBulkListings = async (
       return;
     }
 
-    const { location: coords, rooms } = req.body;
+    const { location: coords, address, rooms } = req.body;
 
-    if (!coords || !coords.latitude || !coords.longitude) {
-      res.status(400).json({ error: "Location coordinates are required" });
+    if (!coords && !address) {
+      res.status(400).json({ error: "Either Location coordinates or an Address string are required" });
       return;
     }
     if (!rooms || !Array.isArray(rooms) || rooms.length === 0) {
@@ -80,17 +90,26 @@ export const createBulkListings = async (
       return;
     }
 
-    // 1. Reverse Geocode (Only once for all rooms)
-    const parsedAddress = await GoogleMapsService.reverseGeocode(
-      coords.latitude,
-      coords.longitude
-    );
-
-    const fullLocation = {
-      ...parsedAddress,
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-    };
+    let fullLocation;
+    // 1. Geocode (Only once for all rooms)
+    if (coords && coords.latitude && coords.longitude) {
+      const parsedAddress = await GoogleMapsService.reverseGeocode(coords.latitude, coords.longitude);
+      fullLocation = {
+        ...parsedAddress,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      };
+    } else if (address) {
+      const forwardData = await GoogleMapsService.forwardGeocode(address);
+      fullLocation = {
+        ...forwardData.parsed,
+        latitude: forwardData.latitude,
+        longitude: forwardData.longitude,
+      };
+    } else {
+      res.status(400).json({ error: "Invalid location format" });
+      return;
+    }
 
     // 2. Bulk Insert array
     const listingIds = await ListingsService.createBulkListings(
