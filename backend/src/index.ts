@@ -3,6 +3,8 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
+import path from "node:path";
+import fs from "node:fs";
 
 import env from "./config/env";
 import { getPool, closePool } from "./config/db";
@@ -10,6 +12,11 @@ import routes from "./routes/index";
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
 
 const app = express();
+const uploadsDir = path.join(process.cwd(), "uploads");
+
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 // --------------- Middleware ---------------
 app.use(helmet());
@@ -23,6 +30,7 @@ app.use(morgan("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use("/uploads", express.static(uploadsDir));
 
 // --------------- Routes ---------------
 app.use("/api", routes);

@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../lib/api';
 
-export default function Register() {
-  const [fullName, setFullName] = useState('');
+export default function Login() {
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,23 +18,16 @@ export default function Register() {
     setErrorMsg('');
 
     try {
-      const res = await fetch("http://localhost:5000/api/auth/register", {
+      const data = await apiFetch<{ user: { id: string; email: string; role: string } }>("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, email, phone, password }),
-        credentials: "include"
+        body: JSON.stringify({ email: email.trim(), password }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Registration failed");
-      }
-
       setUser(data.user);
-      navigate("/");
-    } catch (err: any) {
-      setErrorMsg(err.message);
+      navigate("/listings");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Login failed";
+      setErrorMsg(message);
     } finally {
       setLoading(false);
     }
@@ -44,33 +36,11 @@ export default function Register() {
   return (
     <div style={{ maxWidth: '400px', margin: '4rem auto' }}>
       <div className="glass-card">
-        <h2 className="text-center mb-4">Create Landlord Account</h2>
+        <h2 className="text-center mb-4">Welcome Back</h2>
         
         {errorMsg && <p style={{ color: '#ef4444', marginBottom: '1rem', textAlign: 'center' }}>{errorMsg}</p>}
 
         <form onSubmit={handleSubmit} className="flex-col">
-          <div className="form-group">
-            <label>Full Name</label>
-            <input 
-              type="text" 
-              className="input-style" 
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required 
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Phone Number</label>
-            <input 
-              type="tel" 
-              className="input-style" 
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required 
-            />
-          </div>
-
           <div className="form-group">
             <label>Email Address</label>
             <input 
@@ -94,12 +64,12 @@ export default function Register() {
           </div>
 
           <button type="submit" className="btn btn-primary mt-4" disabled={loading}>
-            {loading ? 'Registering...' : 'Register as Landlord'}
+            {loading ? 'Logging in...' : 'Log In'}
           </button>
         </form>
 
         <p className="text-center mt-4">
-          Already have an account? <Link to="/login" style={{ color: 'var(--brand-primary)' }}>Log in here</Link>
+          Don't have an account? <Link to="/register" style={{ color: 'var(--brand-primary)' }}>Register here</Link>
         </p>
       </div>
     </div>

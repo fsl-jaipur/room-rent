@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { apiFetch } from "../lib/api";
 
 interface User {
   id: string;
@@ -10,6 +11,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
+  refreshSession: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -19,31 +21,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const refreshSession = async () => {
+    try {
+      const data = await apiFetch<{ user: User }>("/api/auth/me", {
+        method: "GET",
+      });
+      setUser(data.user);
+    } catch {
+      setUser(null);
+    }
+  };
+
   useEffect(() => {
-    // Check if logged in on mount
-    fetch("http://localhost:5000/api/auth/me", { credentials: "include" })
-      .then((res) => {
-        if (!res.ok) throw new Error("Not logged in");
-        return res.json();
-      })
-      .then((data) => setUser(data.user))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+    refreshSession().finally(() => setLoading(false));
   }, []);
 
   const logout = async () => {
     try {
-      await fetch("http://localhost:5000/api/auth/logout", {
+      await apiFetch<{ message: string }>("/api/auth/logout", {
         method: "POST",
       });
-      setUser(null);
     } catch (e) {
       console.error("Logout failed", e);
+    } finally {
+      setUser(null);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, setUser, logout }}>
+    <AuthContext.Provider value={{ user, loading, setUser, refreshSession, logout }}>
       {children}
     </AuthContext.Provider>
   );
