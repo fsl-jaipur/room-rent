@@ -396,7 +396,20 @@ export default function ListingsPage() {
 
         <div className="listings-grid" style={{ gap: "0.75rem" }}>
           {items.map((item) => (
-            <article key={item.listingId} className="glass-card" style={{ padding: "0.75rem" }}>
+            <article
+              key={item.listingId}
+              className="glass-card"
+              style={{ padding: "0.75rem", cursor: "pointer" }}
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate(`/listings/${item.listingId}`)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  navigate(`/listings/${item.listingId}`);
+                }
+              }}
+            >
               <div style={{ width: "100%", aspectRatio: "4 / 3", borderRadius: "10px", overflow: "hidden", marginBottom: "0.6rem", background: "rgba(148,163,184,0.2)" }}>
                 {item.coverPhotoUrl && !brokenImageIds.has(item.listingId) ? (
                   <img
@@ -425,13 +438,6 @@ export default function ListingsPage() {
                 {item.foodPreferenceName} | {item.allowSmoking ? "Smoking: Yes" : "Smoking: No"}
               </p>
               <p style={{ fontSize: "0.78rem" }}>By {item.landlordName}</p>
-              {item.coverPhotoUrl ? (
-                <p style={{ fontSize: "0.72rem", marginTop: "0.4rem", wordBreak: "break-all" }}>
-                  <a href={item.coverPhotoUrl} target="_blank" rel="noreferrer">
-                    {item.coverPhotoUrl}
-                  </a>
-                </p>
-              ) : null}
             </article>
           ))}
         </div>

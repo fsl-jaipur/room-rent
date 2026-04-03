@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   getAllListings,
+  getListingById,
   createSingleListing,
   createBulkListings,
 } from "../controllers/listings.controller";
@@ -13,6 +14,7 @@ router.use(requireAuth);
 
 // Get all active listings
 router.get("/", getAllListings);
+router.get("/:listingId", getListingById);
 
 // Single room submission
 router.post("/", createSingleListing);

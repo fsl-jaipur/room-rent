@@ -60,6 +60,30 @@ export const getAllListings = async (
   }
 };
 
+export const getListingById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { listingId } = req.params;
+    if (!listingId) {
+      res.status(400).json({ error: "listingId is required" });
+      return;
+    }
+
+    const item = await ListingsService.getListingById(listingId);
+    if (!item) {
+      res.status(404).json({ error: "Listing not found" });
+      return;
+    }
+
+    res.status(200).json(item);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const createSingleListing = async (
   req: Request,
   res: Response,

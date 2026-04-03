@@ -87,9 +87,77 @@ export const generateReadSasUrl = (blobId: string, expiresInHours = 24 * 365 * 5
 };
 
 export class BlobService {
-  static async uploadImage(file: Express.Multer.File): Promise<UploadedBlob> {
+  private static getContainerClient() {
     const blobService = getBlobServiceClient();
-    const containerClient = blobService.getContainerClient(env.AZURE_STORAGE_CONTAINER_NAME);
+    return blobService.getContainerClient(env.AZURE_STORAGE_CONTAINER_NAME);
+  }
+
+  private static extractBlobIdFromUrl(url: string): string | null {
+    try {
+      const parsed = new URL(url);
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      if (segments.length < 2) return null;
+      return segments.slice(1).join("/");
+    } catch {
+      return null;
+    }
+  }
+
+  static async blobExists(blobId: string): Promise<boolean> {
+    const containerClient = this.getContainerClient();
+    return containerClient.getBlockBlobClient(blobId.replace(/^\/+/, "")).exists();
+  }
+
+  static async findBlobIdByFileName(fileName: string): Promise<string | null> {
+    const containerClient = this.getContainerClient();
+    for await (const blob of containerClient.listBlobsFlat({ prefix: "listings/" })) {
+      if (blob.name.endsWith(`/${fileName}`)) {
+        return blob.name;
+      }
+    }
+    return null;
+  }
+
+  static async resolveReadableBlobId(input: {
+    listingId: string;
+    blobId?: string | null;
+    photoUrl?: string | null;
+  }): Promise<string | null> {
+    const candidates = new Set<string>();
+
+    const addCandidate = (value?: string | null) => {
+      if (!value) return;
+      const trimmed = value.trim().replace(/^\/+/, "");
+      if (!trimmed) return;
+      if (trimmed.includes("/")) {
+        candidates.add(trimmed);
+        return;
+      }
+      candidates.add(`listings/${input.listingId}/${trimmed}`);
+      candidates.add(trimmed);
+    };
+
+    addCandidate(input.blobId);
+    addCandidate(input.photoUrl);
+    if (input.photoUrl) {
+      addCandidate(this.extractBlobIdFromUrl(input.photoUrl));
+    }
+
+    for (const candidate of candidates) {
+      if (await this.blobExists(candidate)) {
+        return candidate;
+      }
+    }
+
+    const fallbackName = [...candidates]
+      .map((value) => value.split("/").pop() || "")
+      .find((value) => value.length > 0);
+    if (!fallbackName) return null;
+    return this.findBlobIdByFileName(fallbackName);
+  }
+
+  static async uploadImage(file: Express.Multer.File): Promise<UploadedBlob> {
+    const containerClient = this.getContainerClient();
 
     const originalExt = (file.originalname.split(".").pop() || "jpg").toLowerCase();
     const safeExt = /^[a-z0-9]+$/.test(originalExt) ? originalExt : "jpg";
@@ -113,8 +181,7 @@ export class BlobService {
     sourceBlobId: string,
     listingId: string
   ): Promise<{ blobId: string; blobUrl: string }> {
-    const blobService = getBlobServiceClient();
-    const containerClient = blobService.getContainerClient(env.AZURE_STORAGE_CONTAINER_NAME);
+    const containerClient = this.getContainerClient();
 
     const normalizedSourceBlobId = sourceBlobId.replace(/^\/+/, "");
     if (normalizedSourceBlobId.startsWith(`listings/${listingId}/`)) {

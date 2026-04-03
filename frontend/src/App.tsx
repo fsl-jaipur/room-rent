@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard/index';
 import AddListing from './pages/AddListing/index';
 import ListingsPage from './pages/Listings/index';
+import ListingDetailsPage from './pages/ListingDetails/index';
 import Login from './pages/Login/index';
 import Register from './pages/Register/index';
 
@@ -30,6 +31,7 @@ function App() {
           
           <Route path="/" element={<ProtectedRoute><Navigate to="/listings" replace /></ProtectedRoute>} />
           <Route path="/listings" element={<ProtectedRoute><ListingsPage /></ProtectedRoute>} />
+          <Route path="/listings/:listingId" element={<ProtectedRoute><ListingDetailsPage /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/add-listing" element={<ProtectedRoute><AddListing /></ProtectedRoute>} />
         </Routes>

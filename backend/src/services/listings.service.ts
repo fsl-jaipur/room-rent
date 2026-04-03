@@ -1,7 +1,7 @@
 import sql from "mssql";
 import { getPool } from "../config/db";
 import type { ParsedAddress } from "./googleMaps.service";
-import { BlobService, generateReadSasUrl, getBlobUrlFromId } from "./blob.service.js";
+import { BlobService, generateReadSasUrl } from "./blob.service.js";
 
 export interface CreateListingDto {
   landlordId: string;
@@ -60,6 +60,21 @@ export interface ListingItem {
   coverPhotoUrl: string | null;
 }
 
+export interface ListingPhotoItem {
+  photoType: "Room" | "Exterior";
+  photoUrl: string;
+  displayOrder: number;
+}
+
+export interface ListingDetailsItem extends ListingItem {
+  propertyTypeId: number | null;
+  foodLevelId: number | null;
+  bedType: string | null;
+  singleBedCount: number | null;
+  doubleBedCount: number | null;
+  photos: ListingPhotoItem[];
+}
+
 export interface ListingFilters {
   search?: string;
   city?: string;
@@ -98,6 +113,140 @@ export class ListingsService {
     } catch {
       return null;
     }
+  }
+
+  private static async resolveCoverPhotoUrl(item: ListingItem): Promise<string | null> {
+    if (!item.coverPhotoUrl) return null;
+    if (item.coverPhotoUrl.includes("sig=")) return item.coverPhotoUrl;
+
+    const photoObject = this.parsePhotoObject(item.coverPhotoUrl);
+    if (photoObject) {
+      const preferred = photoObject.Exterior?.[0] || photoObject.Room?.[0] || null;
+      if (!preferred) return null;
+
+      const resolvedBlobId = await BlobService.resolveReadableBlobId({
+        listingId: item.listingId,
+        blobId: preferred.blobId ?? null,
+        photoUrl: preferred.url ?? null,
+      });
+
+      if (resolvedBlobId) {
+        try {
+          return generateReadSasUrl(resolvedBlobId);
+        } catch {
+          return preferred.url || null;
+        }
+      }
+      return preferred.url || null;
+    }
+
+    const extractedBlobId = this.tryExtractBlobId(item.coverPhotoUrl);
+    const resolvedBlobId = await BlobService.resolveReadableBlobId({
+      listingId: item.listingId,
+      blobId: extractedBlobId,
+      photoUrl: item.coverPhotoUrl,
+    });
+
+    if (resolvedBlobId) {
+      try {
+        return generateReadSasUrl(resolvedBlobId);
+      } catch {
+        return item.coverPhotoUrl;
+      }
+    }
+
+    return item.coverPhotoUrl;
+  }
+
+  private static async resolvePhotoUrl(input: {
+    listingId: string;
+    blobId?: string | null;
+    photoUrl?: string | null;
+  }): Promise<string | null> {
+    const rawUrl = input.photoUrl?.trim() || null;
+    if (rawUrl && rawUrl.includes("sig=")) return rawUrl;
+
+    const resolvedBlobId = await BlobService.resolveReadableBlobId({
+      listingId: input.listingId,
+      blobId: input.blobId ?? null,
+      photoUrl: rawUrl,
+    });
+
+    if (resolvedBlobId) {
+      try {
+        return generateReadSasUrl(resolvedBlobId);
+      } catch {
+        return rawUrl;
+      }
+    }
+
+    return rawUrl;
+  }
+
+  private static async parsePhotoRecords(
+    listingId: string,
+    records: Array<{ photoType: string | null; photoUrl: string | null; displayOrder: number | null }>
+  ): Promise<ListingPhotoItem[]> {
+    const output: ListingPhotoItem[] = [];
+
+    for (const row of records) {
+      if (!row.photoUrl) continue;
+      const photoObject = this.parsePhotoObject(row.photoUrl);
+
+      if (photoObject) {
+        const exterior = photoObject.Exterior || [];
+        const rooms = photoObject.Room || [];
+
+        for (let i = 0; i < exterior.length; i++) {
+          const candidate = exterior[i];
+          const url = await this.resolvePhotoUrl({
+            listingId,
+            blobId: candidate?.blobId,
+            photoUrl: candidate?.url,
+          });
+          if (!url) continue;
+          output.push({
+            photoType: "Exterior",
+            photoUrl: url,
+            displayOrder: i + 1,
+          });
+        }
+
+        for (let i = 0; i < rooms.length; i++) {
+          const candidate = rooms[i];
+          const url = await this.resolvePhotoUrl({
+            listingId,
+            blobId: candidate?.blobId,
+            photoUrl: candidate?.url,
+          });
+          if (!url) continue;
+          output.push({
+            photoType: "Room",
+            photoUrl: url,
+            displayOrder: i + 1,
+          });
+        }
+        continue;
+      }
+
+      const url = await this.resolvePhotoUrl({
+        listingId,
+        photoUrl: row.photoUrl,
+      });
+      if (!url) continue;
+      output.push({
+        photoType: row.photoType === "Exterior" ? "Exterior" : "Room",
+        photoUrl: url,
+        displayOrder: Number(row.displayOrder ?? 1),
+      });
+    }
+
+    output.sort((a, b) => {
+      if (a.photoType !== b.photoType) return a.photoType === "Exterior" ? -1 : 1;
+      return a.displayOrder - b.displayOrder;
+    });
+
+    return output;
   }
   /**
    * Helper to generate a standardized title
@@ -556,54 +705,102 @@ export class ListingsService {
       `);
 
     const total = Number(totalResult.recordset[0]?.TotalCount || 0);
-    const items = (result.recordset as ListingItem[]).map((item) => {
-      if (!item.coverPhotoUrl) return item;
-      if (item.coverPhotoUrl.includes("sig=")) return item;
-
-      const photoObject = this.parsePhotoObject(item.coverPhotoUrl);
-      if (photoObject) {
-        const preferred =
-          photoObject.Exterior?.[0] ||
-          photoObject.Room?.[0] ||
-          null;
-        if (!preferred) {
-          return {
-            ...item,
-            coverPhotoUrl: null,
-          };
-        }
-        if (preferred.blobId) {
-          try {
-            return {
-              ...item,
-              coverPhotoUrl: generateReadSasUrl(preferred.blobId),
-            };
-          } catch {
-            return {
-              ...item,
-              coverPhotoUrl: preferred.url || null,
-            };
-          }
-        }
-        return {
-          ...item,
-          coverPhotoUrl: preferred.url || null,
-        };
-      }
-
-      const blobId = this.tryExtractBlobId(item.coverPhotoUrl);
-      if (!blobId) return item;
-
-      try {
-        return {
-          ...item,
-          coverPhotoUrl: generateReadSasUrl(blobId),
-        };
-      } catch {
-        return item;
-      }
-    });
+    const items = await Promise.all(
+      (result.recordset as ListingItem[]).map(async (item) => ({
+        ...item,
+        coverPhotoUrl: await this.resolveCoverPhotoUrl(item),
+      }))
+    );
 
     return { items, total };
+  }
+
+  static async getListingById(listingId: string): Promise<ListingDetailsItem | null> {
+    const pool = await getPool();
+
+    const listingColumnsResult = await pool.request().query(`
+      SELECT name AS ColumnName
+      FROM sys.columns
+      WHERE object_id = OBJECT_ID('dbo.Listings')
+    `);
+    const listingColumns = new Set(
+      listingColumnsResult.recordset.map((c: { ColumnName: string }) => c.ColumnName)
+    );
+
+    const detailsReq = pool.request();
+    detailsReq.input("ListingId", sql.UniqueIdentifier, listingId);
+
+    const detailResult = await detailsReq.query(`
+      SELECT TOP 1
+        l.ListingId AS listingId,
+        l.LandlordId AS landlordId,
+        u.FullName AS landlordName,
+        l.Title AS title,
+        l.Description AS description,
+        l.FloorLevelId AS floorLevelId,
+        fl.FloorName AS floorName,
+        l.FurnishingTypeId AS furnishingTypeId,
+        ft.FurnishingName AS furnishingName,
+        l.MaxOccupants AS maxOccupants,
+        l.AllowSmoking AS allowSmoking,
+        l.FoodPreferenceId AS foodPreferenceId,
+        fp.PreferenceName AS foodPreferenceName,
+        l.MonthlyRent AS monthlyRent,
+        l.SecurityDeposit AS securityDeposit,
+        CONVERT(VARCHAR(10), l.AvailableFrom, 23) AS availableFrom,
+        l.AddressLine AS addressLine,
+        l.Colony AS colony,
+        l.City AS city,
+        l.State AS state,
+        l.Pincode AS pincode,
+        l.Latitude AS latitude,
+        l.Longitude AS longitude,
+        l.StatusId AS statusId,
+        l.CreatedAt AS createdAt,
+        l.UpdatedAt AS updatedAt,
+        ${listingColumns.has("PropertyTypeId") ? "l.PropertyTypeId" : "NULL"} AS propertyTypeId,
+        ${listingColumns.has("FoodLevelId") ? "l.FoodLevelId" : "NULL"} AS foodLevelId,
+        ${listingColumns.has("BedType") ? "l.BedType" : "NULL"} AS bedType,
+        ${listingColumns.has("SingleBedCount") ? "l.SingleBedCount" : "NULL"} AS singleBedCount,
+        ${listingColumns.has("DoubleBedCount") ? "l.DoubleBedCount" : "NULL"} AS doubleBedCount
+      FROM dbo.Listings l
+      JOIN dbo.Users u ON u.UserId = l.LandlordId
+      JOIN dbo.FloorLevels fl ON fl.FloorLevelId = l.FloorLevelId
+      JOIN dbo.FurnishingTypes ft ON ft.FurnishingTypeId = l.FurnishingTypeId
+      JOIN dbo.FoodPreferences fp ON fp.FoodPreferenceId = l.FoodPreferenceId
+      WHERE l.ListingId = @ListingId AND l.StatusId = 1
+    `);
+
+    if (detailResult.recordset.length === 0) return null;
+
+    const listing = detailResult.recordset[0] as Omit<ListingDetailsItem, "photos" | "coverPhotoUrl"> & {
+      coverPhotoUrl?: string | null;
+    };
+
+    const photosReq = pool.request();
+    photosReq.input("ListingId", sql.UniqueIdentifier, listingId);
+    const photosResult = await photosReq.query(`
+      SELECT
+        lp.PhotoType AS photoType,
+        lp.PhotoUrl AS photoUrl,
+        lp.DisplayOrder AS displayOrder
+      FROM dbo.ListingPhotos lp
+      WHERE lp.ListingId = @ListingId
+      ORDER BY
+        CASE WHEN lp.PhotoType = 'Exterior' THEN 0 ELSE 1 END,
+        lp.DisplayOrder ASC,
+        lp.UploadedAt DESC
+    `);
+
+    const photos = await this.parsePhotoRecords(
+      listingId,
+      photosResult.recordset as Array<{ photoType: string | null; photoUrl: string | null; displayOrder: number | null }>
+    );
+
+    return {
+      ...listing,
+      coverPhotoUrl: photos[0]?.photoUrl || null,
+      photos,
+    };
   }
 }
