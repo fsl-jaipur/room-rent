@@ -1,48 +1,32 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap');
 
 :root {
-  /* Brand Colors - Bright & Vibrant */
-  --brand-primary: #ff6b35;
-  --brand-primary-hover: #ff5722;
-  --brand-accent: #ffa726;
-  --brand-secondary: #ff8a65;
+  --brand-primary: #0f766e;
+  --brand-primary-hover: #0b5e58;
+  --brand-accent: #f59e0b;
+  --brand-secondary: #115e59;
 
-  /* Light Theme with Warm Background */
-  --bg-color: #fff5f0;
+  --bg-color: #f4f7f9;
   --bg-card: #ffffff;
-  --text-main: #1a1a1a;
-  --text-muted: #666666;
-  --text-light: #999999;
-  --border-color: #ffe4d6;
+  --text-main: #101828;
+  --text-muted: #475467;
+  --text-light: #98a2b3;
+  --border-color: #d0dbe5;
   --input-bg: #ffffff;
-  --hover-bg: #fff3e0;
+  --hover-bg: #edf3f8;
   
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
   --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1);
 
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  color-scheme: light dark;
+  font-family: 'Manrope', system-ui, -apple-system, sans-serif;
   color: var(--text-main);
   background-color: var(--bg-color);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-color: #0f1419;
-    --bg-card: #1a1f26;
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
-    --text-light: #6b7280;
-    --border-color: #2d3748;
-    --input-bg: #1a1f26;
-    --hover-bg: #252b35;
-  }
 }
 
 * {
@@ -54,7 +38,10 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg-color);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(15, 118, 110, 0.12), transparent 42%),
+    radial-gradient(circle at 100% 0%, rgba(245, 158, 11, 0.12), transparent 38%),
+    var(--bg-color);
 }
 
 #root {
@@ -70,11 +57,12 @@ body {
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 1.75rem;
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.06);
 }
 
 /* Typography */
 h1 {
+  font-family: 'Sora', 'Manrope', sans-serif;
   font-size: 2rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
@@ -82,6 +70,7 @@ h1 {
 }
 
 h2 {
+  font-family: 'Sora', 'Manrope', sans-serif;
   font-size: 1.5rem;
   font-weight: 600;
   margin-bottom: 0.75rem;
@@ -89,6 +78,7 @@ h2 {
 }
 
 h3 {
+  font-family: 'Sora', 'Manrope', sans-serif;
   font-size: 1.125rem;
   font-weight: 600;
   margin-bottom: 0.5rem;
@@ -612,6 +602,47 @@ p {
   padding: 2rem;
 }
 
+.listings-hero {
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 1.5rem;
+  background: linear-gradient(120deg, rgba(15, 118, 110, 0.1), rgba(245, 158, 11, 0.1));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.listings-hero h2 {
+  margin-bottom: 0.35rem;
+}
+
+.listings-hero-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--brand-secondary);
+}
+
+.listings-hero-stat {
+  min-width: 140px;
+  text-align: right;
+}
+
+.listings-hero-stat span {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.listings-hero-stat strong {
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-size: 1.75rem;
+  color: var(--brand-secondary);
+}
+
 .listings-layout {
   display: grid;
   grid-template-columns: 300px 1fr;
@@ -751,9 +782,22 @@ p {
     padding: 1.5rem 1rem;
   }
 
-  .profile-container .glass-card > div[style*="grid-template-columns"] {
-    grid-template-columns: 1fr !important;
-    text-align: center;
+  .profile-main-grid,
+  .profile-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-header-card {
+    flex-direction: column;
+  }
+
+  .listings-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .listings-hero-stat {
+    text-align: left;
   }
 
   .profile-avatar {
@@ -855,6 +899,55 @@ p {
   max-width: 900px;
   margin: 0 auto;
   padding: 2rem 1.5rem;
+}
+
+.profile-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.profile-header-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.profile-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--brand-secondary);
+  margin-bottom: 0.25rem;
+}
+
+.profile-status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.profile-main-card {
+  padding: 1.5rem;
+}
+
+.profile-main-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+.profile-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 1rem;
+}
+
+.profile-location-field {
+  grid-column: 1 / -1;
 }
 
 .profile-avatar {

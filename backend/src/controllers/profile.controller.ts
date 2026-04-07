@@ -9,6 +9,7 @@ type UserColumnMap = {
   aadhaar: string | null;
   phone: string | null;
   photo: string | null;
+  gender: string | null;
 };
 
 type ProfilePayload = {
@@ -19,6 +20,7 @@ type ProfilePayload = {
   phone?: unknown;
   photo?: unknown;
   photoUrl?: unknown;
+  gender?: unknown;
 };
 
 const columnCandidates: Record<keyof UserColumnMap, string[]> = {
@@ -39,6 +41,7 @@ const columnCandidates: Record<keyof UserColumnMap, string[]> = {
   ],
   phone: ["Phone", "PhoneNumber", "Mobile", "MobileNumber"],
   photo: ["ProfilePhotoUrl", "PhotoUrl", "AvatarUrl", "ProfileImageUrl", "Photo"],
+  gender: ["Gender", "Sex"],
 };
 
 let resolvedColumnMap: UserColumnMap | null = null;
@@ -94,6 +97,7 @@ const resolveUserColumns = async (): Promise<UserColumnMap> => {
     aadhaar: mapColumn("aadhaar"),
     phone: mapColumn("phone"),
     photo: mapColumn("photo"),
+    gender: mapColumn("gender"),
   };
 
   return resolvedColumnMap;
@@ -119,6 +123,7 @@ const getProfileByUserId = async (userId: string) => {
   }
   if (columns.phone) selectParts.push(`[${columns.phone}] AS phone`);
   if (columns.photo) selectParts.push(`[${columns.photo}] AS photo`);
+  if (columns.gender) selectParts.push(`[${columns.gender}] AS gender`);
 
   const sqlText = `
     SELECT UserId${selectParts.length ? ", " : ""}${selectParts.join(", ")}
@@ -137,6 +142,7 @@ const getProfileByUserId = async (userId: string) => {
     aadhaar?: string | null;
     phone?: string | null;
     photo?: string | null;
+    gender?: string | null;
   };
 
   return {
@@ -147,6 +153,7 @@ const getProfileByUserId = async (userId: string) => {
     aadhaar: row.aadhaar ?? null,
     phone: row.phone ?? null,
     photo: row.photo ?? null,
+    gender: row.gender ?? null,
   };
 };
 
@@ -225,6 +232,16 @@ const saveProfile = async (
     request.input("Photo", sql.NVarChar(sql.MAX), photo);
   }
 
+  const gender = trimStringOrNull(payload.gender);
+  if (columns.gender !== null && hasOwn(payload as object, "gender") && gender !== null) {
+    const normalizedGender = gender.toLowerCase();
+    if (normalizedGender !== "male" && normalizedGender !== "female") {
+      throw new Error("VALIDATION_GENDER");
+    }
+    updates.push(`[${columns.gender}] = @Gender`);
+    request.input("Gender", sql.VarChar(10), normalizedGender === "male" ? "Male" : "Female");
+  }
+
   if (!updates.length) {
     return;
   }
@@ -276,6 +293,10 @@ export const createProfile = async (req: Request, res: Response): Promise<void> 
       res.status(400).json({ error: "Aadhaar must be exactly 12 digits" });
       return;
     }
+    if (error instanceof Error && error.message === "VALIDATION_GENDER") {
+      res.status(400).json({ error: "Gender must be Male or Female" });
+      return;
+    }
     if (isUniqueConstraintError(error)) {
       res.status(409).json({ error: "Email, phone, or Aadhaar already in use" });
       return;
@@ -298,6 +319,10 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
   } catch (error) {
     if (error instanceof Error && error.message === "VALIDATION_AADHAAR") {
       res.status(400).json({ error: "Aadhaar must be exactly 12 digits" });
+      return;
+    }
+    if (error instanceof Error && error.message === "VALIDATION_GENDER") {
+      res.status(400).json({ error: "Gender must be Male or Female" });
       return;
     }
     if (isUniqueConstraintError(error)) {

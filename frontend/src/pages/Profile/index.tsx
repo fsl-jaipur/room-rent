@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ApiError, apiFetch } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import Navbar from "../../components/Navbar";
@@ -12,6 +12,7 @@ type Profile = {
   aadhaar: string | null;
   phone: string | null;
   photo: string | null;
+  gender: "Male" | "Female" | null;
 };
 
 type ProfilePayload = {
@@ -21,6 +22,7 @@ type ProfilePayload = {
   aadhaar: string;
   phone: string;
   photo: string;
+  gender: "Male" | "Female" | "";
 };
 
 const emptyPayload: ProfilePayload = {
@@ -30,6 +32,7 @@ const emptyPayload: ProfilePayload = {
   aadhaar: "",
   phone: "",
   photo: "",
+  gender: "",
 };
 
 export default function ProfilePage() {
@@ -59,6 +62,7 @@ export default function ProfilePage() {
         aadhaar: nextProfile.aadhaar || "",
         phone: nextProfile.phone || "",
         photo: nextProfile.photo || "",
+        gender: nextProfile.gender || "",
       });
     } catch (error: unknown) {
       if (error instanceof ApiError && error.status === 401) {
@@ -181,13 +185,16 @@ export default function ProfilePage() {
   return (
     <>
       <Navbar />
-      <div className="profile-container">
-        <div className="glass-card" style={{ marginBottom: "1.5rem" }}>
-          <div className="flex-row justify-between">
-            <div>
-              <h2 style={{ marginBottom: "0.25rem", fontSize: '1.75rem' }}>My Profile</h2>
-              <p style={{ margin: 0 }}>Manage your account information and preferences</p>
-            </div>
+      <div className="profile-container profile-page">
+        <div className="glass-card profile-header-card">
+          <div>
+            <p className="profile-eyebrow">Account Center</p>
+            <h2 style={{ marginBottom: "0.25rem", fontSize: "1.75rem" }}>My Profile</h2>
+            <p style={{ margin: 0 }}>Manage identity, contact details, and preferences.</p>
+          </div>
+          <div className="profile-status-chips">
+            <span className="badge badge-info">Verified Rental Profile</span>
+            {form.gender && <span className="badge badge-primary">{form.gender}</span>}
           </div>
         </div>
 
@@ -202,15 +209,8 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <div className="glass-card">
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "240px 1fr",
-            gap: "2rem",
-            alignItems: "start",
-          }}
-        >
+      <div className="glass-card profile-main-card">
+        <div className="profile-main-grid">
           <div className="flex-col" style={{ alignItems: "center" }}>
             <div className="profile-avatar">
               {form.photo.trim() ? (
@@ -234,7 +234,7 @@ export default function ProfilePage() {
             </label>
           </div>
 
-          <div className="flex-col">
+          <div className="profile-form-grid">
             <div className="form-group">
               <label>Photo URL</label>
               <input
@@ -269,6 +269,24 @@ export default function ProfilePage() {
             </div>
 
             <div className="form-group">
+              <label>Gender</label>
+              <select
+                className="input-style"
+                value={form.gender}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    gender: e.target.value as "Male" | "Female" | "",
+                  }))
+                }
+              >
+                <option value="">Select gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+
+            <div className="form-group profile-location-field">
               <label>Location</label>
               <div className="flex-row" style={{ alignItems: "stretch" }}>
                 <input

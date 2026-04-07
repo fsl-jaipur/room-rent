@@ -9,15 +9,39 @@ type AuthUserRecord = {
   UserId: string;
   Email: string | null;
   Role: string | null;
+  Gender?: string | null;
 };
 
 type UserRole = "Landlord" | "Tenant";
 const ALLOWED_ROLES: UserRole[] = ["Landlord", "Tenant"];
+type UserGender = "Male" | "Female";
+
+let usersHasGenderColumnCache: boolean | null = null;
 
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
 
 const normalizeEmail = (value: string): string => value.trim().toLowerCase();
+
+const normalizeGender = (value: unknown): UserGender | null => {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "male") return "Male";
+  if (normalized === "female") return "Female";
+  return null;
+};
+
+const usersHasGenderColumn = async (): Promise<boolean> => {
+  if (usersHasGenderColumnCache !== null) return usersHasGenderColumnCache;
+  const pool = await db.getPool();
+  const result = await pool.request().query(`
+    SELECT 1 AS found
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'Users' AND COLUMN_NAME = 'Gender'
+  `);
+  usersHasGenderColumnCache = result.recordset.length > 0;
+  return usersHasGenderColumnCache;
+};
 
 const extractSqlMessage = (error: unknown): string => {
   if (typeof error !== "object" || error === null) {
@@ -49,12 +73,13 @@ const sendAuthCookie = (res: Response, user: AuthUserRecord) => {
 };
 
 export const register = async (req: Request, res: Response): Promise<void> => {
-  const { fullName, email, phone, password, role } = req.body as {
+  const { fullName, email, phone, password, role, gender } = req.body as {
     fullName?: unknown;
     email?: unknown;
     phone?: unknown;
     password?: unknown;
     role?: unknown;
+    gender?: unknown;
   };
 
   if (
@@ -76,6 +101,12 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     typeof role === "string" && ALLOWED_ROLES.includes(role as UserRole)
       ? (role as UserRole)
       : "Tenant";
+  const normalizedGender = normalizeGender(gender);
+
+  if (gender !== undefined && normalizedGender === null) {
+    res.status(400).json({ error: "Gender must be Male or Female" });
+    return;
+  }
 
   try {
     const pool = await db.getPool();
@@ -104,25 +135,38 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    const result = await pool
+    const hasGenderColumn = await usersHasGenderColumn();
+    const request = pool
       .request()
       .input("FullName", sql.NVarChar, normalizedFullName)
       .input("Email", sql.VarChar, normalizedEmail)
       .input("Phone", sql.VarChar, normalizedPhone)
       .input("PasswordHash", sql.VarChar, passwordHash)
-      .input("Role", sql.VarChar, normalizedRole)
-      .query(`
-        INSERT INTO dbo.Users (FullName, Email, Phone, PasswordHash, Role, IsVerified)
-        OUTPUT INSERTED.UserId, INSERTED.Email, INSERTED.Role
-        VALUES (@FullName, @Email, @Phone, @PasswordHash, @Role, 0)
-      `);
+      .input("Role", sql.VarChar, normalizedRole);
+
+    const insertColumns = ["FullName", "Email", "Phone", "PasswordHash", "Role", "IsVerified"];
+    const insertValues = ["@FullName", "@Email", "@Phone", "@PasswordHash", "@Role", "0"];
+    const outputColumns = ["INSERTED.UserId", "INSERTED.Email", "INSERTED.Role"];
+
+    if (hasGenderColumn) {
+      insertColumns.push("Gender");
+      insertValues.push("@Gender");
+      outputColumns.push("INSERTED.Gender");
+      request.input("Gender", sql.VarChar, normalizedGender);
+    }
+
+    const result = await request.query(`
+      INSERT INTO dbo.Users (${insertColumns.join(", ")})
+      OUTPUT ${outputColumns.join(", ")}
+      VALUES (${insertValues.join(", ")})
+    `);
 
     const user = result.recordset[0] as AuthUserRecord;
     sendAuthCookie(res, user);
 
     res.status(201).json({
       message: "Registration successful",
-      user: { id: user.UserId, email: user.Email, role: user.Role },
+      user: { id: user.UserId, email: user.Email, role: user.Role, gender: user.Gender ?? null },
     });
   } catch (error) {
     if (
@@ -231,11 +275,16 @@ export const me = async (req: Request, res: Response): Promise<void> => {
 
   try {
     const pool = await db.getPool();
+    const hasGenderColumn = await usersHasGenderColumn();
+    const selectColumns = ["UserId", "Email", "Role", "IsActive"];
+    if (hasGenderColumn) {
+      selectColumns.push("Gender");
+    }
     const result = await pool
       .request()
       .input("UserId", sql.UniqueIdentifier, req.user.id)
       .query(`
-        SELECT UserId, Email, Role, IsActive
+        SELECT ${selectColumns.join(", ")}
         FROM dbo.Users
         WHERE UserId = @UserId
       `);
@@ -247,7 +296,7 @@ export const me = async (req: Request, res: Response): Promise<void> => {
 
     const user = result.recordset[0] as AuthUserRecord;
     res.status(200).json({
-      user: { id: user.UserId, email: user.Email, role: user.Role },
+      user: { id: user.UserId, email: user.Email, role: user.Role, gender: user.Gender ?? null },
     });
   } catch (error) {
     console.error("Auth me Error:", error);

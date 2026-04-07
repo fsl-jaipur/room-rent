@@ -9,9 +9,17 @@ type ListingCardProps = {
   city: string;
   monthlyRent: number;
   maxOccupants: number;
+  landlordGender: string | null;
+  propertyTypeId: number | null;
   furnishingName: string;
   foodPreferenceName: string;
   coverPhotoUrl: string | null;
+};
+
+const propertyTypeMap: Record<number, string> = {
+  1: 'PG',
+  2: 'Individual',
+  3: 'Flat',
 };
 
 export default function ListingCard(props: ListingCardProps) {
@@ -84,6 +92,12 @@ export default function ListingCard(props: ListingCardProps) {
         
         <div className="listing-card-features">
           <span className="feature-tag">{props.maxOccupants} {props.maxOccupants === 1 ? 'Person' : 'People'}</span>
+          {props.propertyTypeId && (
+            <span className="feature-tag">{propertyTypeMap[props.propertyTypeId] || 'Property'}</span>
+          )}
+          {props.landlordGender && (
+            <span className="feature-tag">{props.landlordGender}</span>
+          )}
           <span className="feature-tag">{props.furnishingName}</span>
         </div>
       </div>

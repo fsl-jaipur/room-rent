@@ -9,10 +9,12 @@ type FilterSidebarProps = {
     floorLevelId: number[];
     furnishingTypeId: number[];
     foodPreferenceId: number[];
+    propertyTypeId: number[];
+    gender: ("Male" | "Female")[];
     allowSmoking: boolean[];
     sortBy: 'newest' | 'rent_asc' | 'rent_desc';
   };
-  onFilterChange: (filters: any) => void;
+  onFilterChange: (filters: FilterSidebarProps["filters"]) => void;
   onApply: () => void;
   onClear: () => void;
 };
@@ -91,6 +93,55 @@ export default function FilterSidebar({ filters, onFilterChange, onApply, onClea
                 }
               />
               <span>{v}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="filter-section">
+        <label className="filter-label">Property Type</label>
+        <div className="checkbox-list">
+          {[
+            { id: 1, name: 'PG' },
+            { id: 2, name: 'Individual' },
+            { id: 3, name: 'Flat' },
+          ].map((type) => (
+            <label key={type.id} className="checkbox-item">
+              <input
+                type="checkbox"
+                checked={filters.propertyTypeId.includes(type.id)}
+                onChange={() =>
+                  onFilterChange({
+                    ...filters,
+                    propertyTypeId: toggleNumber(filters.propertyTypeId, type.id),
+                  })
+                }
+              />
+              <span>{type.name}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="filter-section">
+        <label className="filter-label">Owner Gender</label>
+        <div className="checkbox-list">
+          {["Male", "Female"].map((g) => (
+            <label key={g} className="checkbox-item">
+              <input
+                type="checkbox"
+                checked={filters.gender.includes(g as "Male" | "Female")}
+                onChange={() => {
+                  const value = g as "Male" | "Female";
+                  onFilterChange({
+                    ...filters,
+                    gender: filters.gender.includes(value)
+                      ? filters.gender.filter((item) => item !== value)
+                      : [...filters.gender, value],
+                  });
+                }}
+              />
+              <span>{g}</span>
             </label>
           ))}
         </div>

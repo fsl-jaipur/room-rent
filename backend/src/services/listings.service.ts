@@ -34,6 +34,7 @@ export interface ListingItem {
   listingId: string;
   landlordId: string;
   landlordName: string;
+  landlordGender: string | null;
   title: string;
   description: string | null;
   floorLevelId: number;
@@ -44,6 +45,7 @@ export interface ListingItem {
   allowSmoking: boolean;
   foodPreferenceId: number;
   foodPreferenceName: string;
+  propertyTypeId: number | null;
   monthlyRent: number;
   securityDeposit: number | null;
   availableFrom: string;
@@ -84,6 +86,8 @@ export interface ListingFilters {
   floorLevelId?: number[];
   furnishingTypeId?: number[];
   foodPreferenceId?: number[];
+  propertyTypeId?: number[];
+  gender?: string[];
   allowSmoking?: boolean[];
   sortBy?: "newest" | "rent_asc" | "rent_desc";
 }
@@ -476,8 +480,16 @@ export class ListingsService {
     await transaction.begin();
 
     try {
+      const listingColumnsResult = await new sql.Request(transaction).query(`
+        SELECT name AS ColumnName
+        FROM sys.columns
+        WHERE object_id = OBJECT_ID('dbo.Listings')
+      `);
+      const listingColumns = new Set(
+        listingColumnsResult.recordset.map((c: { ColumnName: string }) => c.ColumnName)
+      );
+
       const listingIds: string[] = [];
-      const request = new sql.Request(transaction);
 
       // We use a parameterized query for each room to ensure safe inserts
       // SQL Server node driver allows loop-based request inputs directly against a transaction
@@ -508,18 +520,53 @@ export class ListingsService {
         iterReq.input("Latitude", sql.Decimal(9, 6), location.latitude);
         iterReq.input("Longitude", sql.Decimal(9, 6), location.longitude);
 
+        const insertColumns: string[] = [
+          "LandlordId",
+          "Title",
+          "FloorLevelId",
+          "FurnishingTypeId",
+          "MaxOccupants",
+          "AllowSmoking",
+          "FoodPreferenceId",
+          "MonthlyRent",
+          "AvailableFrom",
+          "AddressLine",
+          "Colony",
+          "City",
+          "State",
+          "Pincode",
+          "Latitude",
+          "Longitude",
+        ];
+        const insertParams: string[] = [
+          "@LandlordId",
+          "@Title",
+          "@FloorLevelId",
+          "@FurnishingTypeId",
+          "@MaxOccupants",
+          "@AllowSmoking",
+          "@FoodPreferenceId",
+          "@MonthlyRent",
+          "@AvailableFrom",
+          "@AddressLine",
+          "@Colony",
+          "@City",
+          "@State",
+          "@Pincode",
+          "@Latitude",
+          "@Longitude",
+        ];
+
+        if (listingColumns.has("PropertyTypeId") && room.propertyTypeId) {
+          insertColumns.push("PropertyTypeId");
+          insertParams.push("@PropertyTypeId");
+          iterReq.input("PropertyTypeId", sql.TinyInt, room.propertyTypeId);
+        }
+
         const result = await iterReq.query(`
-          INSERT INTO dbo.Listings (
-            LandlordId, Title, FloorLevelId, FurnishingTypeId, MaxOccupants, AllowSmoking,
-            FoodPreferenceId, MonthlyRent, AvailableFrom,
-            AddressLine, Colony, City, State, Pincode, Latitude, Longitude
-          )
+          INSERT INTO dbo.Listings (${insertColumns.join(", ")})
           OUTPUT INSERTED.ListingId
-          VALUES (
-            @LandlordId, @Title, @FloorLevelId, @FurnishingTypeId, @MaxOccupants, @AllowSmoking,
-            @FoodPreferenceId, @MonthlyRent, @AvailableFrom,
-            @AddressLine, @Colony, @City, @State, @Pincode, @Latitude, @Longitude
-          );
+          VALUES (${insertParams.join(", ")});
         `);
         
         listingIds.push(result.recordset[0].ListingId);
@@ -545,6 +592,26 @@ export class ListingsService {
     const pool = await getPool();
     const offset = (page - 1) * limit;
 
+    const listingsColumnsResult = await pool.request().query(`
+      SELECT name AS ColumnName
+      FROM sys.columns
+      WHERE object_id = OBJECT_ID('dbo.Listings')
+    `);
+    const listingsColumns = new Set(
+      listingsColumnsResult.recordset.map((c: { ColumnName: string }) => c.ColumnName)
+    );
+    const hasPropertyTypeId = listingsColumns.has("PropertyTypeId");
+
+    const usersColumnsResult = await pool.request().query(`
+      SELECT name AS ColumnName
+      FROM sys.columns
+      WHERE object_id = OBJECT_ID('dbo.Users')
+    `);
+    const usersColumns = new Set(
+      usersColumnsResult.recordset.map((c: { ColumnName: string }) => c.ColumnName)
+    );
+    const hasUserGender = usersColumns.has("Gender");
+
     const whereClauses: string[] = ["l.StatusId = 1"];
     const sortBy = filters.sortBy ?? "newest";
 
@@ -568,6 +635,14 @@ export class ListingsService {
     const uniqueFoodPreferenceIds = [
       ...new Set((filters.foodPreferenceId ?? []).filter(Number.isFinite)),
     ];
+    const uniquePropertyTypeIds = [
+      ...new Set((filters.propertyTypeId ?? []).filter(Number.isFinite)),
+    ];
+    const uniqueGender = [
+      ...new Set((filters.gender ?? []).map((item) => item.trim().toLowerCase())),
+    ]
+      .filter((item) => item === "male" || item === "female")
+      .map((item) => (item === "male" ? "Male" : "Female"));
     const uniqueAllowSmoking = [...new Set(filters.allowSmoking ?? [])];
 
     if (uniqueMaxOccupants.length > 0) {
@@ -592,6 +667,18 @@ export class ListingsService {
         `l.FoodPreferenceId IN (${uniqueFoodPreferenceIds
           .map((_, idx) => `@FoodPreferenceId${idx}`)
           .join(", ")})`
+      );
+    }
+    if (hasPropertyTypeId && uniquePropertyTypeIds.length > 0) {
+      whereClauses.push(
+        `l.PropertyTypeId IN (${uniquePropertyTypeIds
+          .map((_, idx) => `@PropertyTypeId${idx}`)
+          .join(", ")})`
+      );
+    }
+    if (hasUserGender && uniqueGender.length > 0) {
+      whereClauses.push(
+        `u.Gender IN (${uniqueGender.map((_, idx) => `@Gender${idx}`).join(", ")})`
       );
     }
     if (uniqueAllowSmoking.length > 0) {
@@ -629,6 +716,16 @@ export class ListingsService {
       uniqueFoodPreferenceIds.forEach((value, idx) => {
         request.input(`FoodPreferenceId${idx}`, sql.TinyInt, value);
       });
+      if (hasPropertyTypeId) {
+        uniquePropertyTypeIds.forEach((value, idx) => {
+          request.input(`PropertyTypeId${idx}`, sql.TinyInt, value);
+        });
+      }
+      if (hasUserGender) {
+        uniqueGender.forEach((value, idx) => {
+          request.input(`Gender${idx}`, sql.VarChar(10), value);
+        });
+      }
       uniqueAllowSmoking.forEach((value, idx) => {
         request.input(`AllowSmoking${idx}`, sql.Bit, value);
       });
@@ -661,6 +758,7 @@ export class ListingsService {
           l.ListingId AS listingId,
           l.LandlordId AS landlordId,
           u.FullName AS landlordName,
+          ${hasUserGender ? "u.Gender" : "NULL"} AS landlordGender,
           l.Title AS title,
           l.Description AS description,
           l.FloorLevelId AS floorLevelId,
@@ -671,6 +769,7 @@ export class ListingsService {
           l.AllowSmoking AS allowSmoking,
           l.FoodPreferenceId AS foodPreferenceId,
           fp.PreferenceName AS foodPreferenceName,
+          ${hasPropertyTypeId ? "l.PropertyTypeId" : "NULL"} AS propertyTypeId,
           l.MonthlyRent AS monthlyRent,
           l.SecurityDeposit AS securityDeposit,
           CONVERT(VARCHAR(10), l.AvailableFrom, 23) AS availableFrom,

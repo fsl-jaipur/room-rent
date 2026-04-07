@@ -27,6 +27,15 @@ export const getAllListings = async (
       return list.length > 0 ? list : undefined;
     };
 
+    const parseStringList = (value: unknown): string[] | undefined => {
+      if (typeof value !== "string" || value.trim() === "") return undefined;
+      const list = value
+        .split(",")
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+      return list.length > 0 ? list : undefined;
+    };
+
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
 
@@ -39,6 +48,8 @@ export const getAllListings = async (
       floorLevelId: parseNumberList(req.query.floorLevelId),
       furnishingTypeId: parseNumberList(req.query.furnishingTypeId),
       foodPreferenceId: parseNumberList(req.query.foodPreferenceId),
+      propertyTypeId: parseNumberList(req.query.propertyTypeId),
+      gender: parseStringList(req.query.gender),
       allowSmoking: parseBooleanList(req.query.allowSmoking),
       sortBy:
         req.query.sortBy === "rent_asc" ||
@@ -190,13 +201,16 @@ export const createSingleListing = async (
 
     let fullLocation;
     if (coords && coords.latitude && coords.longitude) {
+
+      console.log(coords.latitude,coords.longitude);
+      
       // 1A. Reverse Geocode from coords
-      const parsedAddress = await GoogleMapsService.reverseGeocode(coords.latitude, coords.longitude);
-      fullLocation = {
-        ...parsedAddress,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-      };
+      // const parsedAddress = await GoogleMapsService.reverseGeocode(coords.latitude, coords.longitude);
+      // fullLocation = {
+      //   ...parsedAddress,
+      //   latitude: coords.latitude,
+      //   longitude: coords.longitude,
+      // };
     } else if (address) {
       // 1B. Forward Geocode from string
       const forwardData = await GoogleMapsService.forwardGeocode(address);
@@ -270,12 +284,13 @@ export const createBulkListings = async (
     let fullLocation;
     // 1. Geocode (Only once for all rooms)
     if (coords && coords.latitude && coords.longitude) {
-      const parsedAddress = await GoogleMapsService.reverseGeocode(coords.latitude, coords.longitude);
-      fullLocation = {
-        ...parsedAddress,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-      };
+         console.log(coords.latitude,coords.longitude);
+      // const parsedAddress = await GoogleMapsService.reverseGeocode(coords.latitude, coords.longitude);
+      // fullLocation = {
+      //   ...parsedAddress,
+      //   latitude: coords.latitude,
+      //   longitude: coords.longitude,
+      // };
     } else if (address) {
       const forwardData = await GoogleMapsService.forwardGeocode(address);
       fullLocation = {

@@ -333,10 +333,9 @@ export default function AddListing() {
                       value={room.propertyTypeId}
                       onChange={(e) => updateRoom(room.id, 'propertyTypeId', parseInt(e.target.value))}
                     >
-                      <option value={1}>Apartment</option>
-                      <option value={2}>Independent House</option>
-                      <option value={3}>PG</option>
-                      <option value={4}>Hostel</option>
+                      <option value={1}>PG</option>
+                      <option value={2}>Individual</option>
+                      <option value={3}>Flat</option>
                     </select>
                   </div>
                   

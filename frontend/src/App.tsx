@@ -16,13 +16,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-  if (loading) return <div className="text-center mt-4">Loading...</div>;
-  if (user) return <Navigate to="/listings" replace />;
-  return <>{children}</>;
-}
-
 function App() {
   return (
     <AuthProvider>

@@ -14,8 +14,10 @@ type Listing = {
   monthlyRent: number;
   maxOccupants: number;
   landlordName: string;
+  landlordGender: string | null;
   furnishingName: string;
   foodPreferenceName: string;
+  propertyTypeId: number | null;
   allowSmoking: boolean;
   coverPhotoUrl: string | null;
 };
@@ -36,6 +38,8 @@ type FilterState = {
   floorLevelId: number[];
   furnishingTypeId: number[];
   foodPreferenceId: number[];
+  propertyTypeId: number[];
+  gender: ("Male" | "Female")[];
   allowSmoking: boolean[];
   sortBy: "newest" | "rent_asc" | "rent_desc";
 };
@@ -51,6 +55,8 @@ const defaultFilters: FilterState = {
   floorLevelId: [],
   furnishingTypeId: [],
   foodPreferenceId: [],
+  propertyTypeId: [],
+  gender: [],
   allowSmoking: [],
   sortBy: "newest",
 };
@@ -69,6 +75,13 @@ const parseBooleanList = (value: string | null): boolean[] =>
     .map((v) => v.trim().toLowerCase())
     .filter((v) => v === "true" || v === "false")
     .map((v) => v === "true");
+
+const parseGenderList = (value: string | null): ("Male" | "Female")[] =>
+  (value || "")
+    .split(",")
+    .map((v) => v.trim().toLowerCase())
+    .filter((v) => v === "male" || v === "female")
+    .map((v) => (v === "male" ? "Male" : "Female"));
 
 export default function ListingsPage() {
   const [items, setItems] = useState<Listing[]>([]);
@@ -91,6 +104,8 @@ export default function ListingsPage() {
       floorLevelId: parseNumberList(searchParams.get("floorLevelId")),
       furnishingTypeId: parseNumberList(searchParams.get("furnishingTypeId")),
       foodPreferenceId: parseNumberList(searchParams.get("foodPreferenceId")),
+      propertyTypeId: parseNumberList(searchParams.get("propertyTypeId")),
+      gender: parseGenderList(searchParams.get("gender")),
       allowSmoking: parseBooleanList(searchParams.get("allowSmoking")),
       sortBy:
         searchParams.get("sortBy") === "rent_asc" || searchParams.get("sortBy") === "rent_desc"
@@ -115,6 +130,12 @@ export default function ListingsPage() {
     }
     if (filters.foodPreferenceId.length) {
       params.set("foodPreferenceId", filters.foodPreferenceId.join(","));
+    }
+    if (filters.propertyTypeId.length) {
+      params.set("propertyTypeId", filters.propertyTypeId.join(","));
+    }
+    if (filters.gender.length) {
+      params.set("gender", filters.gender.join(","));
     }
     if (filters.allowSmoking.length) {
       params.set("allowSmoking", filters.allowSmoking.map(String).join(","));
@@ -159,6 +180,8 @@ export default function ListingsPage() {
     if (filters.floorLevelId.length) next.set("floorLevelId", filters.floorLevelId.join(","));
     if (filters.furnishingTypeId.length) next.set("furnishingTypeId", filters.furnishingTypeId.join(","));
     if (filters.foodPreferenceId.length) next.set("foodPreferenceId", filters.foodPreferenceId.join(","));
+    if (filters.propertyTypeId.length) next.set("propertyTypeId", filters.propertyTypeId.join(","));
+    if (filters.gender.length) next.set("gender", filters.gender.join(","));
     if (filters.allowSmoking.length) next.set("allowSmoking", filters.allowSmoking.map(String).join(","));
     setSearchParams(next);
   };
@@ -179,6 +202,18 @@ export default function ListingsPage() {
     <>
       <Navbar />
       <div className="listings-container">
+        <div className="listings-hero">
+          <div>
+            <p className="listings-hero-eyebrow">Discover Rentals</p>
+            <h2>Find your next stay with confidence</h2>
+            <p>Shortlist verified homes with smart filters for budget, type, and preferences.</p>
+          </div>
+          <div className="listings-hero-stat">
+            <span>Total Active</span>
+            <strong>{loading ? "..." : total.toLocaleString("en-IN")}</strong>
+          </div>
+        </div>
+
         <div className="listings-layout">
           <FilterSidebar
             filters={filters}
@@ -234,6 +269,8 @@ export default function ListingsPage() {
                   city={item.city}
                   monthlyRent={item.monthlyRent}
                   maxOccupants={item.maxOccupants}
+                  landlordGender={item.landlordGender}
+                  propertyTypeId={item.propertyTypeId}
                   furnishingName={item.furnishingName}
                   foodPreferenceName={item.foodPreferenceName}
                   coverPhotoUrl={item.coverPhotoUrl}

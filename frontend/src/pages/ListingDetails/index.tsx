@@ -47,16 +47,9 @@ type ListingDetails = {
 };
 
 const propertyTypeMap: Record<number, string> = {
-  1: "Apartment",
-  2: "Independent House",
-  3: "PG",
-  4: "Hostel",
-};
-
-const foodLevelMap: Record<number, string> = {
-  1: "Basic",
-  2: "Standard",
-  3: "Premium",
+  1: "PG",
+  2: "Individual",
+  3: "Flat",
 };
 
 export default function ListingDetailsPage() {

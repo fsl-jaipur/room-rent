@@ -6,6 +6,7 @@ import { apiFetch } from '../../lib/api';
 export default function Register() {
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<'Tenant' | 'Landlord'>('Tenant');
+  const [gender, setGender] = useState<'Male' | 'Female'>('Male');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -26,6 +27,7 @@ export default function Register() {
         body: JSON.stringify({
           fullName: fullName.trim(),
           role,
+          gender,
           email: email.trim(),
           phone: phone.trim(),
           password,
@@ -81,6 +83,18 @@ export default function Register() {
               >
                 <option value="Tenant">Tenant</option>
                 <option value="Landlord">Landlord</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Gender</label>
+              <select
+                className="input-style"
+                value={gender}
+                onChange={(e) => setGender(e.target.value as 'Male' | 'Female')}
+              >
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
               </select>
             </div>
 
