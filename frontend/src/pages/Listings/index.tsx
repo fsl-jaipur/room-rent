@@ -208,10 +208,7 @@ export default function ListingsPage() {
             <h2>Find your next stay with confidence</h2>
             <p>Shortlist verified homes with smart filters for budget, type, and preferences.</p>
           </div>
-          <div className="listings-hero-stat">
-            <span>Total Active</span>
-            <strong>{loading ? "..." : total.toLocaleString("en-IN")}</strong>
-          </div>
+       
         </div>
 
         <div className="listings-layout">

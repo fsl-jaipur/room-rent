@@ -1,8 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MapPin, Plus, Trash2, Send, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import {
+  MapContainer,
+  Marker,
+  TileLayer,
+  useMap,
+  useMapEvents,
+} from 'react-leaflet';
+import L from 'leaflet';
 import { apiFetch, ApiError } from '../../lib/api';
 import Navbar from '../../components/Navbar';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
 interface LocationState {
   latitude: number;
@@ -29,12 +40,91 @@ interface RoomDetails {
 
 type UploadSlot = 'exterior' | 'room-0' | 'room-1';
 
+const DEFAULT_COORDS = { latitude: 26.9124, longitude: 75.7873 };
+
+const mapMarkerIcon = L.icon({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
+
+const reverseGeocode = async (latitude: number, longitude: number): Promise<string> => {
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(
+      String(latitude)
+    )}&lon=${encodeURIComponent(String(longitude))}`
+  );
+  if (!response.ok) {
+    throw new Error('Reverse geocoding failed');
+  }
+  const body = (await response.json()) as { display_name?: string };
+  return body.display_name?.trim() || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+};
+
+const forwardGeocode = async (query: string): Promise<LocationState | null> => {
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
+      query
+    )}&limit=1`
+  );
+  if (!response.ok) return null;
+  const body = (await response.json()) as Array<{ lat?: string; lon?: string }>;
+  const first = body[0];
+  if (!first?.lat || !first?.lon) return null;
+  const latitude = Number(first.lat);
+  const longitude = Number(first.lon);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return { latitude, longitude };
+};
+
+function MapViewportSync({ center }: { center: LocationState }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView([center.latitude, center.longitude], map.getZoom(), { animate: true });
+  }, [center.latitude, center.longitude, map]);
+  return null;
+}
+
+function AddListingMapPicker({
+  center,
+  onSelect,
+}: {
+  center: LocationState;
+  onSelect: (coords: LocationState) => void;
+}) {
+  useMapEvents({
+    click(event) {
+      onSelect({ latitude: event.latlng.lat, longitude: event.latlng.lng });
+    },
+  });
+
+  return (
+    <Marker
+      position={[center.latitude, center.longitude]}
+      icon={mapMarkerIcon}
+      draggable
+      eventHandlers={{
+        dragend: (event) => {
+          const marker = event.target as L.Marker;
+          const next = marker.getLatLng();
+          onSelect({ latitude: next.lat, longitude: next.lng });
+        },
+      }}
+    />
+  );
+}
+
 export default function AddListing() {
   const navigate = useNavigate();
   const [step, setStep] = useState<1 | 2 | 3>(1); // 1: Location, 2: Rooms, 3: Success
   const [location, setLocation] = useState<LocationState | null>(null);
   const [address, setAddress] = useState<string>('');
   const [isLocating, setIsLocating] = useState(false);
+  const [resolvingMapLocation, setResolvingMapLocation] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [exteriorPhotoUrl, setExteriorPhotoUrl] = useState('');
@@ -63,6 +153,27 @@ export default function AddListing() {
     }
   ]);
 
+  const mapCenter = useMemo<LocationState>(
+    () => location ?? DEFAULT_COORDS,
+    [location]
+  );
+
+  const canContinueToDetails = Boolean(location || address.trim().length > 5);
+
+  const applyLocationFromMap = async (coords: LocationState) => {
+    setLocation(coords);
+    setResolvingMapLocation(true);
+    setErrorMsg('');
+    try {
+      const exactAddress = await reverseGeocode(coords.latitude, coords.longitude);
+      setAddress(exactAddress);
+    } catch {
+      setAddress(`${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`);
+    } finally {
+      setResolvingMapLocation(false);
+    }
+  };
+
   const handleFetchLocation = () => {
     setIsLocating(true);
     setErrorMsg('');
@@ -74,14 +185,20 @@ export default function AddListing() {
     }
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocation({
+      async (position) => {
+        const nextLocation = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude
-        });
-        setAddress(''); // Clear plain english address
-        setIsLocating(false);
-        setStep(2);
+        };
+        setLocation(nextLocation);
+        try {
+          const exactAddress = await reverseGeocode(nextLocation.latitude, nextLocation.longitude);
+          setAddress(exactAddress);
+        } catch {
+          setAddress(`${nextLocation.latitude.toFixed(6)}, ${nextLocation.longitude.toFixed(6)}`);
+        } finally {
+          setIsLocating(false);
+        }
       },
       (error) => {
         console.error(error);
@@ -92,13 +209,19 @@ export default function AddListing() {
     );
   };
 
-  const handleManualLocation = (e: React.FormEvent) => {
+  const handleManualLocation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (address.trim().length > 5) {
-      setLocation(null); // Clear coords to rely strictly on address forward-geocoding
-      setStep(2);
-    } else {
+    const trimmed = address.trim();
+    if (trimmed.length <= 5) {
       setErrorMsg('Please enter a full, valid address');
+      return;
+    }
+    setErrorMsg('');
+    const coords = await forwardGeocode(trimmed);
+    if (coords) {
+      setLocation(coords);
+    } else {
+      setLocation(null);
     }
   };
 
@@ -242,7 +365,7 @@ export default function AddListing() {
       <div className="add-listing-container">
         <div className="add-listing-header">
           <h1>Post Your Property</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '1.0625rem' }}>
+          <p className="add-listing-subtitle">
             {step === 1 && "Let's start with your property location"}
             {step === 2 && "Tell us about your property details"}
             {step === 3 && "Your property is now live!"}
@@ -256,7 +379,7 @@ export default function AddListing() {
       
       {/* STEP 1: LOCATION */}
       {step === 1 && (
-        <div className="glass-card text-center text-left">
+        <div className="glass-card location-step-card">
           <h2 className="text-center">Where is your property located?</h2>
           <p className="mb-4 text-center">We'll precisely pinpoint your location to help tenants find you easily.</p>
           
@@ -264,21 +387,21 @@ export default function AddListing() {
             <button 
               className="btn btn-primary" 
               onClick={handleFetchLocation}
-              disabled={isLocating}
+              disabled={isLocating || resolvingMapLocation}
             >
               <MapPin size={20} />
-              {isLocating ? 'Locating...' : 'Fetch My Location'}
+              {isLocating ? 'Locating...' : resolvingMapLocation ? 'Updating...' : 'Fetch My Location'}
             </button>
           </div>
 
-          <div style={{ margin: '2rem 0', display: 'flex', alignItems: 'center', color: 'var(--text-muted)' }}>
-            <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }}></div>
-            <span style={{ padding: '0 1rem', fontSize: '0.9rem' }}>OR ENTER MANUALLY</span>
-            <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }}></div>
+          <div className="divider-or">
+            <div className="divider-line"></div>
+            <span>OR ENTER MANUALLY</span>
+            <div className="divider-line"></div>
           </div>
 
-          <form onSubmit={handleManualLocation} className="flex-col" style={{ maxWidth: '400px', margin: '0 auto' }}>
-            <div className="form-group" style={{ textAlign: 'left' }}>
+          <form onSubmit={handleManualLocation} className="flex-col location-form">
+            <div className="form-group">
               <label>Full Property Address</label>
               <textarea 
                 className="input-style" 
@@ -289,19 +412,53 @@ export default function AddListing() {
                 required 
               />
             </div>
-            <button type="submit" className="btn btn-outline" style={{ width: '100%' }}>
+            <button type="submit" className="btn btn-outline w-full">
               Confirm Address
             </button>
           </form>
           
-          {errorMsg && <p className="mt-4 text-center" style={{ color: '#ef4444' }}>{errorMsg}</p>}
+          {errorMsg && <p className="mt-4 text-center add-listing-error">{errorMsg}</p>}
+
+          <div className="map-preview-card">
+            <h3>Location Preview</h3>
+            <MapContainer
+              center={[mapCenter.latitude, mapCenter.longitude]}
+              zoom={15}
+              scrollWheelZoom
+              className="map-preview-frame"
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              <MapViewportSync center={mapCenter} />
+              <AddListingMapPicker
+                center={mapCenter}
+                onSelect={(coords) => void applyLocationFromMap(coords)}
+              />
+            </MapContainer>
+            <p className="profile-map-help">
+              Click on map or drag the marker to update the property location.
+            </p>
+          </div>
+
+          <div className="text-center mt-4">
+            <button
+              type="button"
+              className="btn btn-primary publish-btn"
+              disabled={!canContinueToDetails || isLocating || resolvingMapLocation}
+              onClick={() => setStep(2)}
+            >
+              Continue to Room Details
+            </button>
+          </div>
         </div>
       )}
 
       {/* STEP 2: ROOM DETAILS */}
       {step === 2 && (
         <>
-          <div className="mb-4 flex-row justify-between">
+          <div className="mb-4 flex-row justify-between room-toolbar">
             <h2>Room Details</h2>
             <button className="btn btn-outline" onClick={handleAddRoom}>
               <Plus size={18} /> Add Another Room
@@ -310,12 +467,11 @@ export default function AddListing() {
 
           <div className="flex-col">
             {rooms.map((room, index) => (
-              <div key={room.id} className="glass-card" style={{ position: 'relative' }}>
+              <div key={room.id} className="glass-card room-card">
                 {rooms.length > 1 && (
                   <button 
                     onClick={() => handleRemoveRoom(room.id)}
-                    className="btn btn-danger"
-                    style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', padding: '0.5rem' }}
+                    className="btn btn-outline room-remove-btn"
                     aria-label="Remove room"
                   >
                     <Trash2 size={18} />
@@ -324,7 +480,7 @@ export default function AddListing() {
                 
                 <h3 className="mb-4">Room {index + 1}</h3>
                 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                <div className="room-grid">
 
                   <div className="form-group">
                     <label>Property Type</label>
@@ -466,7 +622,7 @@ export default function AddListing() {
                     />
                   </div>
 
-                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <div className="form-group room-span-full">
                     <label>Description</label>
                     <textarea
                       className="input-style"
@@ -477,7 +633,7 @@ export default function AddListing() {
                     />
                   </div>
 
-                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <div className="form-group room-span-full">
                     <label className="checkbox-group">
                       <input 
                         type="checkbox" 
@@ -507,24 +663,24 @@ export default function AddListing() {
                     }}
                     placeholder="https://example.com/exterior.jpg"
                   />
-                  <div className="flex-row">
-                    <label className="btn btn-outline" style={{ cursor: 'pointer' }}>
+                  <div className="flex-row image-upload-actions">
+                    <label className="btn btn-outline image-upload-btn">
                       Upload File
                       <input
                         type="file"
                         accept="image/*"
                         onChange={(e) => void handleFileInput(e, 'exterior')}
-                        style={{ display: 'none' }}
+                        className="hidden-input"
                       />
                     </label>
-                    <label className="btn btn-outline" style={{ cursor: 'pointer' }}>
+                    <label className="btn btn-outline image-upload-btn">
                       Capture Photo
                       <input
                         type="file"
                         accept="image/*"
                         capture="environment"
                         onChange={(e) => void handleFileInput(e, 'exterior')}
-                        style={{ display: 'none' }}
+                        className="hidden-input"
                       />
                     </label>
                   </div>
@@ -533,7 +689,7 @@ export default function AddListing() {
                     <img
                       src={exteriorPhotoUrl}
                       alt="Exterior preview"
-                      style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: '10px', marginTop: '0.5rem' }}
+                      className="image-preview"
                     />
                   )}
                 </div>
@@ -556,24 +712,24 @@ export default function AddListing() {
                       }
                       placeholder="https://example.com/room.jpg"
                     />
-                    <div className="flex-row">
-                      <label className="btn btn-outline" style={{ cursor: 'pointer' }}>
+                    <div className="flex-row image-upload-actions">
+                      <label className="btn btn-outline image-upload-btn">
                         Upload File
                         <input
                           type="file"
                           accept="image/*"
                           onChange={(e) => void handleFileInput(e, index === 0 ? 'room-0' : 'room-1')}
-                          style={{ display: 'none' }}
+                          className="hidden-input"
                         />
                       </label>
-                      <label className="btn btn-outline" style={{ cursor: 'pointer' }}>
+                      <label className="btn btn-outline image-upload-btn">
                         Capture Photo
                         <input
                           type="file"
                           accept="image/*"
                           capture="environment"
                           onChange={(e) => void handleFileInput(e, index === 0 ? 'room-0' : 'room-1')}
-                          style={{ display: 'none' }}
+                          className="hidden-input"
                         />
                       </label>
                     </div>
@@ -582,7 +738,7 @@ export default function AddListing() {
                       <img
                         src={url}
                         alt={`Room ${index + 1} preview`}
-                        style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: '10px', marginTop: '0.5rem' }}
+                        className="image-preview"
                       />
                     )}
                   </div>
@@ -590,12 +746,11 @@ export default function AddListing() {
               </div>
             </div>
 
-            {errorMsg && <p className="text-center" style={{ color: '#ef4444' }}>{errorMsg}</p>}
+            {errorMsg && <p className="text-center add-listing-error">{errorMsg}</p>}
 
-            <div className="text-center mt-4">
+            <div className="text-center mt-4 publish-wrap">
               <button 
-                className="btn btn-primary" 
-                style={{ width: '200px' }}
+                className="btn btn-primary publish-btn" 
                 onClick={handleSubmit}
                 disabled={isSubmitting}
               >
@@ -608,11 +763,11 @@ export default function AddListing() {
 
       {/* STEP 3: SUCCESS */}
       {step === 3 && (
-        <div className="glass-card text-center" style={{ padding: '3rem 2rem' }}>
-          <CheckCircle2 color="#10b981" size={72} style={{ margin: '0 auto 1.5rem' }} />
-          <h2 style={{ fontSize: '1.75rem', marginBottom: '0.75rem' }}>Successfully Published!</h2>
-          <p className="mb-4" style={{ fontSize: '1.0625rem' }}>Your property is now active and visible to potential tenants.</p>
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '2rem' }}>
+        <div className="glass-card text-center success-card">
+          <CheckCircle2 color="#10b981" size={72} className="success-icon" />
+          <h2>Successfully Published!</h2>
+          <p className="mb-4">Your property is now active and visible to potential tenants.</p>
+          <div className="success-actions">
             <button className="btn btn-primary" onClick={() => navigate('/listings')}>
               View All Listings
             </button>

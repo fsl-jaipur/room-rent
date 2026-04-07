@@ -1,8 +1,29 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  MapContainer,
+  Marker,
+  TileLayer,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
+import L from "leaflet";
 import { ApiError, apiFetch } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import Navbar from "../../components/Navbar";
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
+const mapMarkerIcon = L.icon({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
 
 type Profile = {
   id: string;
@@ -35,6 +56,91 @@ const emptyPayload: ProfilePayload = {
   gender: "",
 };
 
+type Coordinates = {
+  lat: number;
+  lng: number;
+};
+
+const DEFAULT_COORDINATES: Coordinates = { lat: 26.9124, lng: 75.7873 };
+
+const parseLatLngFromText = (value: string): Coordinates | null => {
+  const match = value.match(
+    /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/
+  );
+  if (!match) return null;
+  const lat = Number(match[1]);
+  const lng = Number(match[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+};
+
+const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(
+      String(lat)
+    )}&lon=${encodeURIComponent(String(lng))}`
+  );
+  if (!response.ok) {
+    throw new Error("Reverse geocoding failed");
+  }
+  const body = (await response.json()) as { display_name?: string };
+  return body.display_name?.trim() || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+};
+
+const forwardGeocode = async (query: string): Promise<Coordinates | null> => {
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
+      query
+    )}&limit=1`
+  );
+  if (!response.ok) return null;
+  const body = (await response.json()) as Array<{ lat?: string; lon?: string }>;
+  const first = body[0];
+  if (!first?.lat || !first?.lon) return null;
+  const lat = Number(first.lat);
+  const lng = Number(first.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+};
+
+function MapViewportSync({ center }: { center: Coordinates }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView([center.lat, center.lng], map.getZoom(), { animate: true });
+  }, [center.lat, center.lng, map]);
+  return null;
+}
+
+function MapLocationPicker({
+  center,
+  onSelect,
+}: {
+  center: Coordinates;
+  onSelect: (coords: Coordinates) => void;
+}) {
+  useMapEvents({
+    click(event) {
+      onSelect({ lat: event.latlng.lat, lng: event.latlng.lng });
+    },
+  });
+
+  return (
+    <Marker
+      position={[center.lat, center.lng]}
+      icon={mapMarkerIcon}
+      draggable
+      eventHandlers={{
+        dragend: (event) => {
+          const marker = event.target as L.Marker;
+          const next = marker.getLatLng();
+          onSelect({ lat: next.lat, lng: next.lng });
+        },
+      }}
+    />
+  );
+}
+
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { logout } = useAuth();
@@ -43,8 +149,24 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [mapCoordinates, setMapCoordinates] = useState<Coordinates>(DEFAULT_COORDINATES);
+  const [resolvingMapLocation, setResolvingMapLocation] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  const syncMapFromLocationText = async (locationText: string) => {
+    const trimmed = locationText.trim();
+    if (!trimmed) return;
+    const parsed = parseLatLngFromText(trimmed);
+    if (parsed) {
+      setMapCoordinates(parsed);
+      return;
+    }
+    const coords = await forwardGeocode(trimmed);
+    if (coords) {
+      setMapCoordinates(coords);
+    }
+  };
 
   const loadProfile = async () => {
     setLoading(true);
@@ -64,6 +186,7 @@ export default function ProfilePage() {
         photo: nextProfile.photo || "",
         gender: nextProfile.gender || "",
       });
+      await syncMapFromLocationText(nextProfile.location || "");
     } catch (error: unknown) {
       if (error instanceof ApiError && error.status === 401) {
         await logout();
@@ -131,6 +254,23 @@ export default function ProfilePage() {
     }
   };
 
+  const updateLocationFromCoordinates = async (coords: Coordinates) => {
+    setMapCoordinates(coords);
+    setResolvingMapLocation(true);
+    setErrorMsg("");
+    try {
+      const exactAddress = await reverseGeocode(coords.lat, coords.lng);
+      setForm((prev) => ({ ...prev, location: exactAddress }));
+    } catch {
+      setForm((prev) => ({
+        ...prev,
+        location: `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`,
+      }));
+    } finally {
+      setResolvingMapLocation(false);
+    }
+  };
+
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
       setErrorMsg("Geolocation is not supported by your browser");
@@ -143,27 +283,14 @@ export default function ProfilePage() {
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        const lat = position.coords.latitude.toFixed(6);
-        const lng = position.coords.longitude.toFixed(6);
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
         try {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(
-              lat
-            )}&lon=${encodeURIComponent(lng)}`
-          );
-
-          if (!response.ok) {
-            throw new Error("Reverse geocoding failed");
-          }
-
-          const body = (await response.json()) as { display_name?: string };
-          const exactAddress = body.display_name?.trim();
-          setForm((prev) => ({
-            ...prev,
-            location: exactAddress && exactAddress.length ? exactAddress : `${lat}, ${lng}`,
-          }));
+          setMapCoordinates({ lat, lng });
+          const exactAddress = await reverseGeocode(lat, lng);
+          setForm((prev) => ({ ...prev, location: exactAddress }));
         } catch {
-          setForm((prev) => ({ ...prev, location: `${lat}, ${lng}` }));
+          setForm((prev) => ({ ...prev, location: `${lat.toFixed(6)}, ${lng.toFixed(6)}` }));
         } finally {
           setLocating(false);
         }
@@ -177,6 +304,11 @@ export default function ProfilePage() {
   };
 
   const avatarFallback = (form.fullName || form.email || "U").trim().charAt(0).toUpperCase();
+  const locationButtonText = useMemo(() => {
+    if (locating) return "Locating...";
+    if (resolvingMapLocation) return "Updating location...";
+    return "Use current location";
+  }, [locating, resolvingMapLocation]);
 
   if (loading) {
     return <div className="text-center mt-4">Loading profile...</div>;
@@ -300,11 +432,29 @@ export default function ProfilePage() {
                   type="button"
                   className="btn btn-outline"
                   onClick={handleUseCurrentLocation}
-                  disabled={locating}
+                  disabled={locating || resolvingMapLocation}
                   style={{ whiteSpace: "nowrap" }}
                 >
-                  {locating ? "Locating..." : "Use current location"}
+                  {locationButtonText}
                 </button>
+              </div>
+              <div className="profile-map-wrap">
+                <MapContainer
+                  center={[mapCoordinates.lat, mapCoordinates.lng]}
+                  zoom={15}
+                  scrollWheelZoom
+                  className="map-preview-frame profile-map-frame"
+                >
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  <MapViewportSync center={mapCoordinates} />
+                  <MapLocationPicker center={mapCoordinates} onSelect={(coords) => void updateLocationFromCoordinates(coords)} />
+                </MapContainer>
+                <p className="profile-map-help">
+                  Click on map or drag the marker to update your location.
+                </p>
               </div>
             </div>
 

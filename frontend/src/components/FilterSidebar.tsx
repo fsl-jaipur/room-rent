@@ -25,6 +25,13 @@ const RENT_MAX = 50000;
 const toggleNumber = (current: number[], value: number): number[] =>
   current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
 
+const occupantOptions = [
+  { value: 1, label: "1" },
+  { value: 2, label: "2" },
+  { value: 3, label: "3+" },
+  { value: 4, label: "Family" },
+];
+
 export default function FilterSidebar({ filters, onFilterChange, onApply, onClear }: FilterSidebarProps) {
   return (
     <aside className="filter-sidebar">
@@ -80,19 +87,19 @@ export default function FilterSidebar({ filters, onFilterChange, onApply, onClea
       <div className="filter-section">
         <label className="filter-label">Occupants</label>
         <div className="checkbox-grid">
-          {[1, 2, 3, 4].map((v) => (
-            <label key={v} className="checkbox-pill">
+          {occupantOptions.map((option) => (
+            <label key={option.value} className="checkbox-pill">
               <input
                 type="checkbox"
-                checked={filters.maxOccupants.includes(v)}
+                checked={filters.maxOccupants.includes(option.value)}
                 onChange={() =>
                   onFilterChange({
                     ...filters,
-                    maxOccupants: toggleNumber(filters.maxOccupants, v),
+                    maxOccupants: toggleNumber(filters.maxOccupants, option.value),
                   })
                 }
               />
-              <span>{v}</span>
+              <span>{option.label}</span>
             </label>
           ))}
         </div>
@@ -124,7 +131,7 @@ export default function FilterSidebar({ filters, onFilterChange, onApply, onClea
       </div>
 
       <div className="filter-section">
-        <label className="filter-label">Owner Gender</label>
+        <label className="filter-label">Room For </label>
         <div className="checkbox-list">
           {["Male", "Female"].map((g) => (
             <label key={g} className="checkbox-item">

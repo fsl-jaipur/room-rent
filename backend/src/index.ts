@@ -5,8 +5,10 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import path from "node:path";
 import fs from "node:fs";
+import swaggerUi from "swagger-ui-express";
 
 import env from "./config/env";
+import swaggerSpec from "./config/swagger";
 import { getPool, closePool } from "./config/db";
 import routes from "./routes/index";
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
@@ -31,6 +33,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use("/uploads", express.static(uploadsDir));
+app.get("/api/docs.json", (_req, res) => {
+  res.status(200).json(swaggerSpec);
+});
+app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // --------------- Routes ---------------
 app.use("/api", routes);

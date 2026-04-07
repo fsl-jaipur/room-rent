@@ -65,7 +65,7 @@ const sendAuthCookie = (res: Response, user: AuthUserRecord) => {
   res.cookie("jwt", token, {
     httpOnly: true,
     secure: env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: env.COOKIE_SAME_SITE,
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
@@ -308,7 +308,7 @@ export const logout = (_req: Request, res: Response): void => {
   res.clearCookie("jwt", {
     httpOnly: true,
     secure: env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: env.COOKIE_SAME_SITE,
   });
   res.status(200).json({ message: "Logged out successfully" });
 };
