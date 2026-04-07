@@ -37,6 +37,7 @@ interface RoomDetails {
   singleBedCount: number;
   doubleBedCount: number;
 }
+type RoomPayload = Omit<RoomDetails, 'id'>;
 
 type UploadSlot = 'exterior' | 'room-0' | 'room-1';
 
@@ -188,7 +189,7 @@ export default function AddListing() {
       async (position) => {
         const nextLocation = {
           latitude: position.coords.latitude,
-          longitude: position.coords.longitude
+          longitude: position.coords.longitude,
         };
         setLocation(nextLocation);
         try {
@@ -253,7 +254,11 @@ export default function AddListing() {
     setRooms(rooms.filter(r => r.id !== id));
   };
 
-  const updateRoom = (id: string, field: keyof RoomDetails, value: any) => {
+  const updateRoom = <K extends keyof RoomDetails>(
+    id: string,
+    field: K,
+    value: RoomDetails[K]
+  ) => {
     setRooms(rooms.map(r => r.id === id ? { ...r, [field]: value } : r));
   };
 
@@ -306,7 +311,11 @@ export default function AddListing() {
 
     try {
       // Format payload correctly (stripping UI-only ids)
-      const payloadRooms = rooms.map(({ id, ...rest }) => rest);
+      const payloadRooms: RoomPayload[] = rooms.map((room) => {
+        const roomPayload = { ...room } as Partial<RoomDetails>;
+        delete roomPayload.id;
+        return roomPayload as RoomPayload;
+      });
       const photos = [
         ...(exteriorPhotoUrl.trim()
           ? [

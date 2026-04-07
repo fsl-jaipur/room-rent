@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   MapContainer,
@@ -154,7 +154,7 @@ export default function ProfilePage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  const syncMapFromLocationText = async (locationText: string) => {
+  const syncMapFromLocationText = useCallback(async (locationText: string) => {
     const trimmed = locationText.trim();
     if (!trimmed) return;
     const parsed = parseLatLngFromText(trimmed);
@@ -166,9 +166,9 @@ export default function ProfilePage() {
     if (coords) {
       setMapCoordinates(coords);
     }
-  };
+  }, []);
 
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     setLoading(true);
     setErrorMsg("");
     try {
@@ -197,11 +197,11 @@ export default function ProfilePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [logout, navigate, syncMapFromLocationText]);
 
   useEffect(() => {
     void loadProfile();
-  }, []);
+  }, [loadProfile]);
 
   const handleSave = async () => {
     const trimmedAadhaar = form.aadhaar.trim();
