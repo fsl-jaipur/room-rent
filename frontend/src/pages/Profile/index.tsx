@@ -1,29 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  MapContainer,
-  Marker,
-  TileLayer,
-  useMap,
-  useMapEvents,
-} from "react-leaflet";
-import L from "leaflet";
 import { ApiError, apiFetch } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import Navbar from "../../components/Navbar";
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
-
-const mapMarkerIcon = L.icon({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
+import GoogleLocationPickerMap from "../../components/GoogleLocationPickerMap";
+import { forwardGeocode, reverseGeocode, type Coordinates } from "../../lib/googleMaps";
+import Skeleton from "../../components/Skeleton";
 
 type Profile = {
   id: string;
@@ -56,11 +38,6 @@ const emptyPayload: ProfilePayload = {
   gender: "",
 };
 
-type Coordinates = {
-  lat: number;
-  lng: number;
-};
-
 const DEFAULT_COORDINATES: Coordinates = { lat: 26.9124, lng: 75.7873 };
 
 const parseLatLngFromText = (value: string): Coordinates | null => {
@@ -74,72 +51,6 @@ const parseLatLngFromText = (value: string): Coordinates | null => {
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
   return { lat, lng };
 };
-
-const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(
-      String(lat)
-    )}&lon=${encodeURIComponent(String(lng))}`
-  );
-  if (!response.ok) {
-    throw new Error("Reverse geocoding failed");
-  }
-  const body = (await response.json()) as { display_name?: string };
-  return body.display_name?.trim() || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-};
-
-const forwardGeocode = async (query: string): Promise<Coordinates | null> => {
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
-      query
-    )}&limit=1`
-  );
-  if (!response.ok) return null;
-  const body = (await response.json()) as Array<{ lat?: string; lon?: string }>;
-  const first = body[0];
-  if (!first?.lat || !first?.lon) return null;
-  const lat = Number(first.lat);
-  const lng = Number(first.lon);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  return { lat, lng };
-};
-
-function MapViewportSync({ center }: { center: Coordinates }) {
-  const map = useMap();
-  useEffect(() => {
-    map.setView([center.lat, center.lng], map.getZoom(), { animate: true });
-  }, [center.lat, center.lng, map]);
-  return null;
-}
-
-function MapLocationPicker({
-  center,
-  onSelect,
-}: {
-  center: Coordinates;
-  onSelect: (coords: Coordinates) => void;
-}) {
-  useMapEvents({
-    click(event) {
-      onSelect({ lat: event.latlng.lat, lng: event.latlng.lng });
-    },
-  });
-
-  return (
-    <Marker
-      position={[center.lat, center.lng]}
-      icon={mapMarkerIcon}
-      draggable
-      eventHandlers={{
-        dragend: (event) => {
-          const marker = event.target as L.Marker;
-          const next = marker.getLatLng();
-          onSelect({ lat: next.lat, lng: next.lng });
-        },
-      }}
-    />
-  );
-}
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -311,7 +222,34 @@ export default function ProfilePage() {
   }, [locating, resolvingMapLocation]);
 
   if (loading) {
-    return <div className="text-center mt-4">Loading profile...</div>;
+    return (
+      <>
+        <Navbar />
+        <div className="profile-container profile-page">
+          <div className="glass-card profile-header-card">
+            <div style={{ width: "100%" }}>
+              <Skeleton style={{ width: 140, height: 14, marginBottom: 10 }} />
+              <Skeleton style={{ width: 220, height: 28, marginBottom: 8 }} />
+              <Skeleton style={{ width: "60%", height: 16 }} />
+            </div>
+          </div>
+          <div className="glass-card profile-main-card">
+            <div className="profile-main-grid">
+              <div className="flex-col" style={{ alignItems: "center" }}>
+                <Skeleton style={{ width: 160, height: 160, borderRadius: "50%" }} />
+                <Skeleton style={{ width: "100%", height: 40, marginTop: "1rem" }} />
+              </div>
+              <div className="profile-form-grid">
+                {Array.from({ length: 8 }).map((_, idx) => (
+                  <Skeleton key={`profile-field-skeleton-${idx}`} style={{ width: "100%", height: 44 }} />
+                ))}
+                <Skeleton style={{ gridColumn: "1 / -1", width: "100%", height: 220 }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
   }
 
   return (
@@ -439,19 +377,11 @@ export default function ProfilePage() {
                 </button>
               </div>
               <div className="profile-map-wrap">
-                <MapContainer
-                  center={[mapCoordinates.lat, mapCoordinates.lng]}
-                  zoom={15}
-                  scrollWheelZoom
+                <GoogleLocationPickerMap
+                  center={mapCoordinates}
+                  onSelect={(coords) => void updateLocationFromCoordinates(coords)}
                   className="map-preview-frame profile-map-frame"
-                >
-                  <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  />
-                  <MapViewportSync center={mapCoordinates} />
-                  <MapLocationPicker center={mapCoordinates} onSelect={(coords) => void updateLocationFromCoordinates(coords)} />
-                </MapContainer>
+                />
                 <p className="profile-map-help">
                   Click on map or drag the marker to update your location.
                 </p>

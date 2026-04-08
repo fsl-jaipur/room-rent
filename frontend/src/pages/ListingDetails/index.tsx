@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ApiError, apiFetch } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import Navbar from "../../components/Navbar";
+import Skeleton from "../../components/Skeleton";
 
 type ListingPhoto = {
   photoType: "Room" | "Exterior";
@@ -98,10 +99,38 @@ export default function ListingDetailsPage() {
   return (
     <>
       <Navbar />
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '1.5rem' }}>
+      <div style={{ width: '100%', padding: '1.5rem' }}>
         {loading && (
-          <div className="glass-card text-center">
-            <p style={{ margin: 0 }}>Loading property details...</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: '1.5rem', alignItems: 'start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+                <Skeleton style={{ width: '100%', aspectRatio: '16 / 9' }} />
+                <div style={{ padding: '1rem', display: 'flex', gap: '0.75rem' }}>
+                  <Skeleton style={{ width: 120, height: 90 }} />
+                  <Skeleton style={{ width: 120, height: 90 }} />
+                  <Skeleton style={{ width: 120, height: 90 }} />
+                </div>
+              </div>
+              <div className="glass-card">
+                <Skeleton style={{ width: '45%', height: 32, marginBottom: '1rem' }} />
+                <Skeleton style={{ width: '80%', height: 18, marginBottom: '0.5rem' }} />
+                <Skeleton style={{ width: '65%', height: 18 }} />
+              </div>
+              <div className="glass-card">
+                <Skeleton style={{ width: '35%', height: 26, marginBottom: '1rem' }} />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.75rem' }}>
+                  {Array.from({ length: 9 }).map((_, idx) => (
+                    <Skeleton key={`detail-item-skeleton-${idx}`} style={{ width: '100%', height: 44 }} />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="glass-card">
+              <Skeleton style={{ width: '55%', height: 40, marginBottom: '1rem' }} />
+              <Skeleton style={{ width: '80%', height: 18, marginBottom: '1rem' }} />
+              <Skeleton style={{ width: '100%', height: 46, marginBottom: '0.75rem' }} />
+              <Skeleton style={{ width: '100%', height: 46 }} />
+            </div>
           </div>
         )}
 

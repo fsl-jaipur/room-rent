@@ -24,6 +24,8 @@ const RENT_MAX = 50000;
 
 const toggleNumber = (current: number[], value: number): number[] =>
   current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+const toggleExclusive = <T,>(current: T[], value: T): T[] =>
+  current.includes(value) ? [] : [value];
 
 const occupantOptions = [
   { value: 1, label: "1" },
@@ -49,7 +51,7 @@ export default function FilterSidebar({ filters, onFilterChange, onApply, onClea
           className="input-style"
           value={filters.search}
           onChange={(e) => onFilterChange({ ...filters, search: e.target.value })}
-          placeholder="Enter locality, city..."
+          placeholder="Search by keyword (area, city, owner, type...)"
         />
       </div>
 
@@ -95,7 +97,7 @@ export default function FilterSidebar({ filters, onFilterChange, onApply, onClea
                 onChange={() =>
                   onFilterChange({
                     ...filters,
-                    maxOccupants: toggleNumber(filters.maxOccupants, option.value),
+                    maxOccupants: toggleExclusive(filters.maxOccupants, option.value),
                   })
                 }
               />
@@ -142,9 +144,7 @@ export default function FilterSidebar({ filters, onFilterChange, onApply, onClea
                   const value = g as "Male" | "Female";
                   onFilterChange({
                     ...filters,
-                    gender: filters.gender.includes(value)
-                      ? filters.gender.filter((item) => item !== value)
-                      : [...filters.gender, value],
+                    gender: toggleExclusive(filters.gender, value),
                   });
                 }}
               />

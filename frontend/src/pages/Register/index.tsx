@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
+import brandLogo from '../../assets/Roombaazi Final Logo.png';
 
 export default function Register() {
   const [fullName, setFullName] = useState('');
@@ -12,7 +13,7 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
-  
+
   const navigate = useNavigate();
   const { setUser } = useAuth();
 
@@ -35,9 +36,9 @@ export default function Register() {
       });
 
       setUser(data.user);
-      navigate("/listings");
+      navigate('/listings');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Registration failed";
+      const message = err instanceof Error ? err.message : 'Registration failed';
       setErrorMsg(message);
     } finally {
       setLoading(false);
@@ -46,15 +47,15 @@ export default function Register() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', background: 'var(--bg-color)' }}>
-      <div style={{ width: '100%', maxWidth: '420px' }}>
+      <div style={{ width: '100%' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem', color: 'var(--brand-primary)' }}>RentHub</h1>
+          <img src={brandLogo} alt="Roombaazi" style={{ width: '210px', maxWidth: '100%', margin: '0 auto 0.75rem', display: 'block' }} />
           <p style={{ color: 'var(--text-muted)' }}>Start your rental journey today</p>
         </div>
 
         <div className="glass-card">
           <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>Create Account</h2>
-          
+
           {errorMsg && (
             <div style={{ padding: '0.75rem', background: '#fee', border: '1px solid #fcc', borderRadius: '4px', marginBottom: '1rem' }}>
               <p style={{ color: '#c33', margin: 0, fontSize: '0.875rem' }}>{errorMsg}</p>
@@ -64,13 +65,13 @@ export default function Register() {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label>Full Name</label>
-              <input 
-                type="text" 
-                className="input-style" 
+              <input
+                type="text"
+                className="input-style"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="John Doe"
-                required 
+                required
               />
             </div>
 
@@ -100,37 +101,37 @@ export default function Register() {
 
             <div className="form-group">
               <label>Phone Number</label>
-              <input 
-                type="tel" 
-                className="input-style" 
+              <input
+                type="tel"
+                className="input-style"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+91 98765 43210"
-                required 
+                required
               />
             </div>
 
             <div className="form-group">
               <label>Email Address</label>
-              <input 
-                type="email" 
-                className="input-style" 
+              <input
+                type="email"
+                className="input-style"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
-                required 
+                required
               />
             </div>
 
             <div className="form-group">
               <label>Password</label>
-              <input 
-                type="password" 
-                className="input-style" 
+              <input
+                type="password"
+                className="input-style"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Create a strong password"
-                required 
+                required
               />
             </div>
 

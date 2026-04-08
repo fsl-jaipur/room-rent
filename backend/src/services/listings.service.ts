@@ -615,8 +615,54 @@ export class ListingsService {
     const whereClauses: string[] = ["l.StatusId = 1"];
     const sortBy = filters.sortBy ?? "newest";
 
-    if (filters.search && filters.search.trim()) {
-      whereClauses.push("(l.Colony LIKE @Search OR l.City LIKE @Search OR l.State LIKE @Search)");
+    const searchKeywords = (filters.search ?? "")
+      .trim()
+      .split(/\s+/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+      .slice(0, 8);
+
+    if (searchKeywords.length > 0) {
+      const searchTokenClauses = searchKeywords.map(
+        (_, idx) => `(
+          l.Title LIKE @Search${idx}
+          OR ISNULL(l.Description, '') LIKE @Search${idx}
+          OR l.AddressLine LIKE @Search${idx}
+          OR l.Colony LIKE @Search${idx}
+          OR l.City LIKE @Search${idx}
+          OR l.State LIKE @Search${idx}
+          OR l.Pincode LIKE @Search${idx}
+          OR u.FullName LIKE @Search${idx}
+          OR fl.FloorName LIKE @Search${idx}
+          OR ft.FurnishingName LIKE @Search${idx}
+          OR fp.PreferenceName LIKE @Search${idx}
+          ${
+            hasPropertyTypeId
+              ? `OR (
+            CASE
+              WHEN l.PropertyTypeId = 1 THEN 'PG'
+              WHEN l.PropertyTypeId = 2 THEN 'Individual'
+              WHEN l.PropertyTypeId = 3 THEN 'Flat'
+              ELSE ''
+            END
+          ) LIKE @Search${idx}`
+              : ""
+          }
+          OR REPLACE(l.Title, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(ISNULL(l.Description, ''), ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(l.AddressLine, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(l.Colony, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(l.City, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(l.State, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(l.Pincode, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(u.FullName, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(fl.FloorName, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(ft.FurnishingName, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(fp.PreferenceName, ' ', '') LIKE @SearchCompact${idx}
+        )`
+      );
+
+      whereClauses.push(`(${searchTokenClauses.join(" OR ")})`);
     }
     if (filters.city && filters.city.trim()) {
       whereClauses.push("l.City = @City");
@@ -688,9 +734,10 @@ export class ListingsService {
     }
 
     const applyFilterParams = (request: sql.Request) => {
-      if (filters.search && filters.search.trim()) {
-        request.input("Search", sql.NVarChar(160), `%${filters.search.trim()}%`);
-      }
+      searchKeywords.forEach((keyword, idx) => {
+        request.input(`Search${idx}`, sql.NVarChar(160), `%${keyword}%`);
+        request.input(`SearchCompact${idx}`, sql.NVarChar(160), `%${keyword.replace(/\s+/g, "")}%`);
+      });
 
       if (filters.city && filters.city.trim()) {
         request.input("City", sql.NVarChar(100), filters.city.trim());
@@ -745,6 +792,10 @@ export class ListingsService {
     const totalResult = await totalReq.query(`
       SELECT COUNT(1) AS TotalCount
       FROM dbo.Listings l
+      JOIN dbo.Users u ON u.UserId = l.LandlordId
+      JOIN dbo.FloorLevels fl ON fl.FloorLevelId = l.FloorLevelId
+      JOIN dbo.FurnishingTypes ft ON ft.FurnishingTypeId = l.FurnishingTypeId
+      JOIN dbo.FoodPreferences fp ON fp.FoodPreferenceId = l.FoodPreferenceId
       WHERE ${whereSql}
     `);
 

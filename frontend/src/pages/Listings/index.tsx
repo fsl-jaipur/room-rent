@@ -5,6 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import Navbar from "../../components/Navbar";
 import FilterSidebar from "../../components/FilterSidebar";
 import ListingCard from "../../components/ListingCard";
+import Skeleton from "../../components/Skeleton";
 
 type Listing = {
   listingId: string;
@@ -81,7 +82,8 @@ const parseGenderList = (value: string | null): ("Male" | "Female")[] =>
     .split(",")
     .map((v) => v.trim().toLowerCase())
     .filter((v) => v === "male" || v === "female")
-    .map((v) => (v === "male" ? "Male" : "Female"));
+    .map((v) => (v === "male" ? "Male" : "Female"))
+    .slice(0, 1);
 
 export default function ListingsPage() {
   const [items, setItems] = useState<Listing[]>([]);
@@ -100,7 +102,7 @@ export default function ListingsPage() {
       search: searchParams.get("search") || "",
       minRent: Number(searchParams.get("minRent")) || defaultFilters.minRent,
       maxRent: Number(searchParams.get("maxRent")) || defaultFilters.maxRent,
-      maxOccupants: parseNumberList(searchParams.get("maxOccupants")),
+      maxOccupants: parseNumberList(searchParams.get("maxOccupants")).slice(0, 1),
       floorLevelId: parseNumberList(searchParams.get("floorLevelId")),
       furnishingTypeId: parseNumberList(searchParams.get("furnishingTypeId")),
       foodPreferenceId: parseNumberList(searchParams.get("foodPreferenceId")),
@@ -222,7 +224,7 @@ export default function ListingsPage() {
           <section>
             <div className="sort-bar">
               <div className="sort-bar-count">
-                {loading ? "Loading..." : `${total.toLocaleString("en-IN")} properties found`}
+                {loading ? <Skeleton style={{ width: 180, height: 20 }} /> : `${total.toLocaleString("en-IN")} properties found`}
               </div>
               <select
                 value={filters.sortBy}
@@ -257,22 +259,37 @@ export default function ListingsPage() {
             )}
 
             <div className="listings-grid">
-              {items.map((item) => (
-                <ListingCard
-                  key={item.listingId}
-                  listingId={item.listingId}
-                  title={item.title}
-                  colony={item.colony}
-                  city={item.city}
-                  monthlyRent={item.monthlyRent}
-                  maxOccupants={item.maxOccupants}
-                  landlordGender={item.landlordGender}
-                  propertyTypeId={item.propertyTypeId}
-                  furnishingName={item.furnishingName}
-                  foodPreferenceName={item.foodPreferenceName}
-                  coverPhotoUrl={item.coverPhotoUrl}
-                />
-              ))}
+              {loading
+                ? Array.from({ length: 6 }).map((_, idx) => (
+                    <div key={`listing-skeleton-${idx}`} className="listing-card" style={{ padding: 0, overflow: "hidden" }}>
+                      <Skeleton style={{ width: "100%", aspectRatio: "4 / 3" }} />
+                      <div style={{ padding: "1.25rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                        <Skeleton style={{ width: "50%", height: 24 }} />
+                        <Skeleton style={{ width: "80%", height: 18 }} />
+                        <Skeleton style={{ width: "65%", height: 16 }} />
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <Skeleton style={{ width: 70, height: 26, borderRadius: 999 }} />
+                          <Skeleton style={{ width: 90, height: 26, borderRadius: 999 }} />
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                : items.map((item) => (
+                    <ListingCard
+                      key={item.listingId}
+                      listingId={item.listingId}
+                      title={item.title}
+                      colony={item.colony}
+                      city={item.city}
+                      monthlyRent={item.monthlyRent}
+                      maxOccupants={item.maxOccupants}
+                      landlordGender={item.landlordGender}
+                      propertyTypeId={item.propertyTypeId}
+                      furnishingName={item.furnishingName}
+                      foodPreferenceName={item.foodPreferenceName}
+                      coverPhotoUrl={item.coverPhotoUrl}
+                    />
+                  ))}
             </div>
 
             {totalPages > 1 && (

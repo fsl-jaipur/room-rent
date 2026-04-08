@@ -1,19 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { MapPin, Plus, Trash2, Send, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import {
-  MapContainer,
-  Marker,
-  TileLayer,
-  useMap,
-  useMapEvents,
-} from 'react-leaflet';
-import L from 'leaflet';
 import { apiFetch, ApiError } from '../../lib/api';
 import Navbar from '../../components/Navbar';
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import GoogleLocationPickerMap from '../../components/GoogleLocationPickerMap';
+import {
+  forwardGeocode,
+  reverseGeocode,
+  type Coordinates,
+} from '../../lib/googleMaps';
 
 interface LocationState {
   latitude: number;
@@ -42,82 +37,6 @@ type RoomPayload = Omit<RoomDetails, 'id'>;
 type UploadSlot = 'exterior' | 'room-0' | 'room-1';
 
 const DEFAULT_COORDS = { latitude: 26.9124, longitude: 75.7873 };
-
-const mapMarkerIcon = L.icon({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
-
-const reverseGeocode = async (latitude: number, longitude: number): Promise<string> => {
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(
-      String(latitude)
-    )}&lon=${encodeURIComponent(String(longitude))}`
-  );
-  if (!response.ok) {
-    throw new Error('Reverse geocoding failed');
-  }
-  const body = (await response.json()) as { display_name?: string };
-  return body.display_name?.trim() || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-};
-
-const forwardGeocode = async (query: string): Promise<LocationState | null> => {
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
-      query
-    )}&limit=1`
-  );
-  if (!response.ok) return null;
-  const body = (await response.json()) as Array<{ lat?: string; lon?: string }>;
-  const first = body[0];
-  if (!first?.lat || !first?.lon) return null;
-  const latitude = Number(first.lat);
-  const longitude = Number(first.lon);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-  return { latitude, longitude };
-};
-
-function MapViewportSync({ center }: { center: LocationState }) {
-  const map = useMap();
-  useEffect(() => {
-    map.setView([center.latitude, center.longitude], map.getZoom(), { animate: true });
-  }, [center.latitude, center.longitude, map]);
-  return null;
-}
-
-function AddListingMapPicker({
-  center,
-  onSelect,
-}: {
-  center: LocationState;
-  onSelect: (coords: LocationState) => void;
-}) {
-  useMapEvents({
-    click(event) {
-      onSelect({ latitude: event.latlng.lat, longitude: event.latlng.lng });
-    },
-  });
-
-  return (
-    <Marker
-      position={[center.latitude, center.longitude]}
-      icon={mapMarkerIcon}
-      draggable
-      eventHandlers={{
-        dragend: (event) => {
-          const marker = event.target as L.Marker;
-          const next = marker.getLatLng();
-          onSelect({ latitude: next.lat, longitude: next.lng });
-        },
-      }}
-    />
-  );
-}
 
 export default function AddListing() {
   const navigate = useNavigate();
@@ -154,22 +73,22 @@ export default function AddListing() {
     }
   ]);
 
-  const mapCenter = useMemo<LocationState>(
-    () => location ?? DEFAULT_COORDS,
-    [location]
-  );
+  const mapCenter = useMemo<Coordinates>(() => {
+    if (!location) return { lat: DEFAULT_COORDS.latitude, lng: DEFAULT_COORDS.longitude };
+    return { lat: location.latitude, lng: location.longitude };
+  }, [location]);
 
   const canContinueToDetails = Boolean(location || address.trim().length > 5);
 
-  const applyLocationFromMap = async (coords: LocationState) => {
-    setLocation(coords);
+  const applyLocationFromMap = async (coords: Coordinates) => {
+    setLocation({ latitude: coords.lat, longitude: coords.lng });
     setResolvingMapLocation(true);
     setErrorMsg('');
     try {
-      const exactAddress = await reverseGeocode(coords.latitude, coords.longitude);
+      const exactAddress = await reverseGeocode(coords.lat, coords.lng);
       setAddress(exactAddress);
     } catch {
-      setAddress(`${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`);
+      setAddress(`${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`);
     } finally {
       setResolvingMapLocation(false);
     }
@@ -220,7 +139,7 @@ export default function AddListing() {
     setErrorMsg('');
     const coords = await forwardGeocode(trimmed);
     if (coords) {
-      setLocation(coords);
+      setLocation({ latitude: coords.lat, longitude: coords.lng });
     } else {
       setLocation(null);
     }
@@ -430,22 +349,11 @@ export default function AddListing() {
 
           <div className="map-preview-card">
             <h3>Location Preview</h3>
-            <MapContainer
-              center={[mapCenter.latitude, mapCenter.longitude]}
-              zoom={15}
-              scrollWheelZoom
+            <GoogleLocationPickerMap
+              center={mapCenter}
+              onSelect={(coords) => void applyLocationFromMap(coords)}
               className="map-preview-frame"
-            >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              <MapViewportSync center={mapCenter} />
-              <AddListingMapPicker
-                center={mapCenter}
-                onSelect={(coords) => void applyLocationFromMap(coords)}
-              />
-            </MapContainer>
+            />
             <p className="profile-map-help">
               Click on map or drag the marker to update the property location.
             </p>
@@ -682,16 +590,7 @@ export default function AddListing() {
                         className="hidden-input"
                       />
                     </label>
-                    <label className="btn btn-outline image-upload-btn">
-                      Capture Photo
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={(e) => void handleFileInput(e, 'exterior')}
-                        className="hidden-input"
-                      />
-                    </label>
+                   
                   </div>
                   {uploadingSlot === 'exterior' && <p>Uploading exterior image...</p>}
                   {exteriorPhotoUrl.trim() && (
@@ -731,16 +630,7 @@ export default function AddListing() {
                           className="hidden-input"
                         />
                       </label>
-                      <label className="btn btn-outline image-upload-btn">
-                        Capture Photo
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          onChange={(e) => void handleFileInput(e, index === 0 ? 'room-0' : 'room-1')}
-                          className="hidden-input"
-                        />
-                      </label>
+                    
                     </div>
                     {uploadingSlot === (index === 0 ? 'room-0' : 'room-1') && <p>Uploading room image...</p>}
                     {url.trim() && (
