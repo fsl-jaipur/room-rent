@@ -47,7 +47,7 @@ export default function Register() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', background: 'var(--bg-color)' }}>
-      <div style={{ width: '100%' }}>
+      <div style={{ width: '100%', maxWidth: '420px' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <img src={brandLogo} alt="Roombaazi" style={{ width: '210px', maxWidth: '100%', margin: '0 auto 0.75rem', display: 'block' }} />
           <p style={{ color: 'var(--text-muted)' }}>Start your rental journey today</p>
