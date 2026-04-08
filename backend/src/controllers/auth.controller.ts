@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import sql from "mssql";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { OAuth2Client } from "google-auth-library";
 import db from "../config/db.js";
 import env from "../config/env.js";
 
@@ -17,6 +18,7 @@ const ALLOWED_ROLES: UserRole[] = ["Landlord", "Tenant"];
 type UserGender = "Male" | "Female";
 
 let usersHasGenderColumnCache: boolean | null = null;
+const googleClient = new OAuth2Client();
 
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
@@ -50,6 +52,13 @@ const extractSqlMessage = (error: unknown): string => {
 
   const maybeMessage = (error as { message?: unknown }).message;
   return typeof maybeMessage === "string" ? maybeMessage : "";
+};
+
+const generateGooglePhonePlaceholder = (): string => {
+  const randomDigits = `${Date.now()}${Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, "0")}`.slice(-14);
+  return `G${randomDigits}`;
 };
 
 const sendAuthCookie = (res: Response, user: AuthUserRecord) => {
@@ -264,6 +273,115 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     console.error("Login Error:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const googleLogin = async (req: Request, res: Response): Promise<void> => {
+  const { idToken } = req.body as { idToken?: unknown };
+
+  if (!isNonEmptyString(idToken)) {
+    res.status(400).json({ error: "Google ID token is required" });
+    return;
+  }
+
+  if (!isNonEmptyString(env.GOOGLE_CLIENT_ID)) {
+    res.status(500).json({ error: "Server Google auth is not configured" });
+    return;
+  }
+
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const email = payload?.email ? normalizeEmail(payload.email) : "";
+    const fullName = payload?.name?.trim() || "Google User";
+
+    if (!email) {
+      res.status(400).json({ error: "Google account email is unavailable" });
+      return;
+    }
+
+    if (!payload?.email_verified) {
+      res.status(401).json({ error: "Google email is not verified" });
+      return;
+    }
+
+    const pool = await db.getPool();
+    const hasGenderColumn = await usersHasGenderColumn();
+
+    const existingUserResult = await pool
+      .request()
+      .input("Email", sql.VarChar, email)
+      .query(`
+        SELECT UserId, Email, Role, IsActive${hasGenderColumn ? ", Gender" : ""}
+        FROM dbo.Users
+        WHERE Email = @Email
+      `);
+
+    if (existingUserResult.recordset.length > 0) {
+      const existingUser = existingUserResult.recordset[0] as AuthUserRecord & {
+        IsActive: boolean;
+      };
+
+      if (!existingUser.IsActive) {
+        res.status(403).json({ error: "Account is deactivated" });
+        return;
+      }
+
+      sendAuthCookie(res, existingUser);
+      res.status(200).json({
+        message: "Google login successful",
+        user: {
+          id: existingUser.UserId,
+          email: existingUser.Email,
+          role: existingUser.Role,
+          gender: existingUser.Gender ?? null,
+        },
+      });
+      return;
+    }
+
+    const request = pool
+      .request()
+      .input("FullName", sql.NVarChar, fullName)
+      .input("Email", sql.VarChar, email)
+      .input("Phone", sql.VarChar, generateGooglePhonePlaceholder())
+      .input("Role", sql.VarChar, "Tenant");
+
+    const insertColumns = ["FullName", "Email", "Phone", "Role", "IsVerified"];
+    const insertValues = ["@FullName", "@Email", "@Phone", "@Role", "1"];
+    const outputColumns = ["INSERTED.UserId", "INSERTED.Email", "INSERTED.Role"];
+
+    if (hasGenderColumn) {
+      insertColumns.push("Gender");
+      insertValues.push("NULL");
+      outputColumns.push("INSERTED.Gender");
+    }
+
+    const createdResult = await request.query(`
+      INSERT INTO dbo.Users (${insertColumns.join(", ")})
+      OUTPUT ${outputColumns.join(", ")}
+      VALUES (${insertValues.join(", ")})
+    `);
+
+    const createdUser = createdResult.recordset[0] as AuthUserRecord;
+    sendAuthCookie(res, createdUser);
+
+    res.status(201).json({
+      message: "Google signup successful",
+      user: {
+        id: createdUser.UserId,
+        email: createdUser.Email,
+        role: createdUser.Role,
+        gender: createdUser.Gender ?? null,
+      },
+    });
+  } catch (error) {
+    console.error("Google login Error:", error);
+    res.status(401).json({ error: "Google authentication failed" });
   }
 };
 

@@ -1,3 +1,41 @@
+import { existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDir = path.dirname(currentFilePath);
+const backendEnvPath = path.resolve(currentDir, "../../.env");
+
+const loadEnvFile = (filePath: string) => {
+  if (!existsSync(filePath)) return;
+
+  const fileContents = readFileSync(filePath, "utf8");
+  for (const rawLine of fileContents.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+
+    const separatorIndex = line.indexOf("=");
+    if (separatorIndex <= 0) continue;
+
+    const key = line.slice(0, separatorIndex).trim();
+    let value = line.slice(separatorIndex + 1).trim();
+
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    if (!process.env[key]) {
+      process.env[key] = value;
+    }
+  }
+};
+
+loadEnvFile(backendEnvPath);
+
 export const env = {
   PORT: parseInt(process.env.PORT || "5000"),
   NODE_ENV: process.env.NODE_ENV || "development",
@@ -12,6 +50,8 @@ export const env = {
 
   // External APIs
   GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY || "",
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
 
   // Azure Blob Storage
   AZURE_STORAGE_ACCOUNT_NAME: process.env.AZURE_STORAGE_ACCOUNT_NAME || "",
