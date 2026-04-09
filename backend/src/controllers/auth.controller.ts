@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import sql from "mssql";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { OAuth2Client } from "google-auth-library";
 import db from "../config/db.js";
 import env from "../config/env.js";
 
@@ -9,15 +10,40 @@ type AuthUserRecord = {
   UserId: string;
   Email: string | null;
   Role: string | null;
+  Gender?: string | null;
 };
 
 type UserRole = "Landlord" | "Tenant";
 const ALLOWED_ROLES: UserRole[] = ["Landlord", "Tenant"];
+type UserGender = "Male" | "Female";
+
+let usersHasGenderColumnCache: boolean | null = null;
+const googleClient = new OAuth2Client();
 
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
 
 const normalizeEmail = (value: string): string => value.trim().toLowerCase();
+
+const normalizeGender = (value: unknown): UserGender | null => {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "male") return "Male";
+  if (normalized === "female") return "Female";
+  return null;
+};
+
+const usersHasGenderColumn = async (): Promise<boolean> => {
+  if (usersHasGenderColumnCache !== null) return usersHasGenderColumnCache;
+  const pool = await db.getPool();
+  const result = await pool.request().query(`
+    SELECT 1 AS found
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'Users' AND COLUMN_NAME = 'Gender'
+  `);
+  usersHasGenderColumnCache = result.recordset.length > 0;
+  return usersHasGenderColumnCache;
+};
 
 const extractSqlMessage = (error: unknown): string => {
   if (typeof error !== "object" || error === null) {
@@ -26,6 +52,13 @@ const extractSqlMessage = (error: unknown): string => {
 
   const maybeMessage = (error as { message?: unknown }).message;
   return typeof maybeMessage === "string" ? maybeMessage : "";
+};
+
+const generateGooglePhonePlaceholder = (): string => {
+  const randomDigits = `${Date.now()}${Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, "0")}`.slice(-14);
+  return `G${randomDigits}`;
 };
 
 const sendAuthCookie = (res: Response, user: AuthUserRecord) => {
@@ -41,7 +74,7 @@ const sendAuthCookie = (res: Response, user: AuthUserRecord) => {
   res.cookie("jwt", token, {
     httpOnly: true,
     secure: env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: env.NODE_ENV === "production" ? "none" : "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
@@ -49,12 +82,13 @@ const sendAuthCookie = (res: Response, user: AuthUserRecord) => {
 };
 
 export const register = async (req: Request, res: Response): Promise<void> => {
-  const { fullName, email, phone, password, role } = req.body as {
+  const { fullName, email, phone, password, role, gender } = req.body as {
     fullName?: unknown;
     email?: unknown;
     phone?: unknown;
     password?: unknown;
     role?: unknown;
+    gender?: unknown;
   };
 
   if (
@@ -76,6 +110,12 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     typeof role === "string" && ALLOWED_ROLES.includes(role as UserRole)
       ? (role as UserRole)
       : "Tenant";
+  const normalizedGender = normalizeGender(gender);
+
+  if (gender !== undefined && normalizedGender === null) {
+    res.status(400).json({ error: "Gender must be Male or Female" });
+    return;
+  }
 
   try {
     const pool = await db.getPool();
@@ -104,25 +144,38 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    const result = await pool
+    const hasGenderColumn = await usersHasGenderColumn();
+    const request = pool
       .request()
       .input("FullName", sql.NVarChar, normalizedFullName)
       .input("Email", sql.VarChar, normalizedEmail)
       .input("Phone", sql.VarChar, normalizedPhone)
       .input("PasswordHash", sql.VarChar, passwordHash)
-      .input("Role", sql.VarChar, normalizedRole)
-      .query(`
-        INSERT INTO dbo.Users (FullName, Email, Phone, PasswordHash, Role, IsVerified)
-        OUTPUT INSERTED.UserId, INSERTED.Email, INSERTED.Role
-        VALUES (@FullName, @Email, @Phone, @PasswordHash, @Role, 0)
-      `);
+      .input("Role", sql.VarChar, normalizedRole);
+
+    const insertColumns = ["FullName", "Email", "Phone", "PasswordHash", "Role", "IsVerified"];
+    const insertValues = ["@FullName", "@Email", "@Phone", "@PasswordHash", "@Role", "0"];
+    const outputColumns = ["INSERTED.UserId", "INSERTED.Email", "INSERTED.Role"];
+
+    if (hasGenderColumn) {
+      insertColumns.push("Gender");
+      insertValues.push("@Gender");
+      outputColumns.push("INSERTED.Gender");
+      request.input("Gender", sql.VarChar, normalizedGender);
+    }
+
+    const result = await request.query(`
+      INSERT INTO dbo.Users (${insertColumns.join(", ")})
+      OUTPUT ${outputColumns.join(", ")}
+      VALUES (${insertValues.join(", ")})
+    `);
 
     const user = result.recordset[0] as AuthUserRecord;
     sendAuthCookie(res, user);
 
     res.status(201).json({
       message: "Registration successful",
-      user: { id: user.UserId, email: user.Email, role: user.Role },
+      user: { id: user.UserId, email: user.Email, role: user.Role, gender: user.Gender ?? null },
     });
   } catch (error) {
     if (
@@ -223,6 +276,115 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+export const googleLogin = async (req: Request, res: Response): Promise<void> => {
+  const { idToken } = req.body as { idToken?: unknown };
+
+  if (!isNonEmptyString(idToken)) {
+    res.status(400).json({ error: "Google ID token is required" });
+    return;
+  }
+
+  if (!isNonEmptyString(env.GOOGLE_CLIENT_ID)) {
+    res.status(500).json({ error: "Server Google auth is not configured" });
+    return;
+  }
+
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const email = payload?.email ? normalizeEmail(payload.email) : "";
+    const fullName = payload?.name?.trim() || "Google User";
+
+    if (!email) {
+      res.status(400).json({ error: "Google account email is unavailable" });
+      return;
+    }
+
+    if (!payload?.email_verified) {
+      res.status(401).json({ error: "Google email is not verified" });
+      return;
+    }
+
+    const pool = await db.getPool();
+    const hasGenderColumn = await usersHasGenderColumn();
+
+    const existingUserResult = await pool
+      .request()
+      .input("Email", sql.VarChar, email)
+      .query(`
+        SELECT UserId, Email, Role, IsActive${hasGenderColumn ? ", Gender" : ""}
+        FROM dbo.Users
+        WHERE Email = @Email
+      `);
+
+    if (existingUserResult.recordset.length > 0) {
+      const existingUser = existingUserResult.recordset[0] as AuthUserRecord & {
+        IsActive: boolean;
+      };
+
+      if (!existingUser.IsActive) {
+        res.status(403).json({ error: "Account is deactivated" });
+        return;
+      }
+
+      sendAuthCookie(res, existingUser);
+      res.status(200).json({
+        message: "Google login successful",
+        user: {
+          id: existingUser.UserId,
+          email: existingUser.Email,
+          role: existingUser.Role,
+          gender: existingUser.Gender ?? null,
+        },
+      });
+      return;
+    }
+
+    const request = pool
+      .request()
+      .input("FullName", sql.NVarChar, fullName)
+      .input("Email", sql.VarChar, email)
+      .input("Phone", sql.VarChar, generateGooglePhonePlaceholder())
+      .input("Role", sql.VarChar, "Tenant");
+
+    const insertColumns = ["FullName", "Email", "Phone", "Role", "IsVerified"];
+    const insertValues = ["@FullName", "@Email", "@Phone", "@Role", "1"];
+    const outputColumns = ["INSERTED.UserId", "INSERTED.Email", "INSERTED.Role"];
+
+    if (hasGenderColumn) {
+      insertColumns.push("Gender");
+      insertValues.push("NULL");
+      outputColumns.push("INSERTED.Gender");
+    }
+
+    const createdResult = await request.query(`
+      INSERT INTO dbo.Users (${insertColumns.join(", ")})
+      OUTPUT ${outputColumns.join(", ")}
+      VALUES (${insertValues.join(", ")})
+    `);
+
+    const createdUser = createdResult.recordset[0] as AuthUserRecord;
+    sendAuthCookie(res, createdUser);
+
+    res.status(201).json({
+      message: "Google signup successful",
+      user: {
+        id: createdUser.UserId,
+        email: createdUser.Email,
+        role: createdUser.Role,
+        gender: createdUser.Gender ?? null,
+      },
+    });
+  } catch (error) {
+    console.error("Google login Error:", error);
+    res.status(401).json({ error: "Google authentication failed" });
+  }
+};
+
 export const me = async (req: Request, res: Response): Promise<void> => {
   if (!req.user?.id) {
     res.status(401).json({ error: "Unauthorized" });
@@ -231,11 +393,16 @@ export const me = async (req: Request, res: Response): Promise<void> => {
 
   try {
     const pool = await db.getPool();
+    const hasGenderColumn = await usersHasGenderColumn();
+    const selectColumns = ["UserId", "Email", "Role", "IsActive"];
+    if (hasGenderColumn) {
+      selectColumns.push("Gender");
+    }
     const result = await pool
       .request()
       .input("UserId", sql.UniqueIdentifier, req.user.id)
       .query(`
-        SELECT UserId, Email, Role, IsActive
+        SELECT ${selectColumns.join(", ")}
         FROM dbo.Users
         WHERE UserId = @UserId
       `);
@@ -247,7 +414,7 @@ export const me = async (req: Request, res: Response): Promise<void> => {
 
     const user = result.recordset[0] as AuthUserRecord;
     res.status(200).json({
-      user: { id: user.UserId, email: user.Email, role: user.Role },
+      user: { id: user.UserId, email: user.Email, role: user.Role, gender: user.Gender ?? null },
     });
   } catch (error) {
     console.error("Auth me Error:", error);
@@ -259,7 +426,7 @@ export const logout = (_req: Request, res: Response): void => {
   res.clearCookie("jwt", {
     httpOnly: true,
     secure: env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: env.COOKIE_SAME_SITE,
   });
   res.status(200).json({ message: "Logged out successfully" });
 };

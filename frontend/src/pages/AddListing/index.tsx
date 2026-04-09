@@ -1,7 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { MapPin, Plus, Trash2, Send, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, ApiError } from '../../lib/api';
+import Navbar from '../../components/Navbar';
+import GoogleLocationPickerMap from '../../components/GoogleLocationPickerMap';
+import {
+  forwardGeocode,
+  reverseGeocode,
+  type Coordinates,
+} from '../../lib/googleMaps';
 
 interface LocationState {
   latitude: number;
@@ -25,8 +32,11 @@ interface RoomDetails {
   singleBedCount: number;
   doubleBedCount: number;
 }
+type RoomPayload = Omit<RoomDetails, 'id'>;
 
 type UploadSlot = 'exterior' | 'room-0' | 'room-1';
+
+const DEFAULT_COORDS = { latitude: 26.9124, longitude: 75.7873 };
 
 export default function AddListing() {
   const navigate = useNavigate();
@@ -34,6 +44,7 @@ export default function AddListing() {
   const [location, setLocation] = useState<LocationState | null>(null);
   const [address, setAddress] = useState<string>('');
   const [isLocating, setIsLocating] = useState(false);
+  const [resolvingMapLocation, setResolvingMapLocation] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [exteriorPhotoUrl, setExteriorPhotoUrl] = useState('');
@@ -62,6 +73,27 @@ export default function AddListing() {
     }
   ]);
 
+  const mapCenter = useMemo<Coordinates>(() => {
+    if (!location) return { lat: DEFAULT_COORDS.latitude, lng: DEFAULT_COORDS.longitude };
+    return { lat: location.latitude, lng: location.longitude };
+  }, [location]);
+
+  const canContinueToDetails = Boolean(location || address.trim().length > 5);
+
+  const applyLocationFromMap = async (coords: Coordinates) => {
+    setLocation({ latitude: coords.lat, longitude: coords.lng });
+    setResolvingMapLocation(true);
+    setErrorMsg('');
+    try {
+      const exactAddress = await reverseGeocode(coords.lat, coords.lng);
+      setAddress(exactAddress);
+    } catch {
+      setAddress(`${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`);
+    } finally {
+      setResolvingMapLocation(false);
+    }
+  };
+
   const handleFetchLocation = () => {
     setIsLocating(true);
     setErrorMsg('');
@@ -73,14 +105,20 @@ export default function AddListing() {
     }
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocation({
+      async (position) => {
+        const nextLocation = {
           latitude: position.coords.latitude,
-          longitude: position.coords.longitude
-        });
-        setAddress(''); // Clear plain english address
-        setIsLocating(false);
-        setStep(2);
+          longitude: position.coords.longitude,
+        };
+        setLocation(nextLocation);
+        try {
+          const exactAddress = await reverseGeocode(nextLocation.latitude, nextLocation.longitude);
+          setAddress(exactAddress);
+        } catch {
+          setAddress(`${nextLocation.latitude.toFixed(6)}, ${nextLocation.longitude.toFixed(6)}`);
+        } finally {
+          setIsLocating(false);
+        }
       },
       (error) => {
         console.error(error);
@@ -91,13 +129,19 @@ export default function AddListing() {
     );
   };
 
-  const handleManualLocation = (e: React.FormEvent) => {
+  const handleManualLocation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (address.trim().length > 5) {
-      setLocation(null); // Clear coords to rely strictly on address forward-geocoding
-      setStep(2);
-    } else {
+    const trimmed = address.trim();
+    if (trimmed.length <= 5) {
       setErrorMsg('Please enter a full, valid address');
+      return;
+    }
+    setErrorMsg('');
+    const coords = await forwardGeocode(trimmed);
+    if (coords) {
+      setLocation({ latitude: coords.lat, longitude: coords.lng });
+    } else {
+      setLocation(null);
     }
   };
 
@@ -129,7 +173,11 @@ export default function AddListing() {
     setRooms(rooms.filter(r => r.id !== id));
   };
 
-  const updateRoom = (id: string, field: keyof RoomDetails, value: any) => {
+  const updateRoom = <K extends keyof RoomDetails>(
+    id: string,
+    field: K,
+    value: RoomDetails[K]
+  ) => {
     setRooms(rooms.map(r => r.id === id ? { ...r, [field]: value } : r));
   };
 
@@ -182,7 +230,11 @@ export default function AddListing() {
 
     try {
       // Format payload correctly (stripping UI-only ids)
-      const payloadRooms = rooms.map(({ id, ...rest }) => rest);
+      const payloadRooms: RoomPayload[] = rooms.map((room) => {
+        const roomPayload = { ...room } as Partial<RoomDetails>;
+        delete roomPayload.id;
+        return roomPayload as RoomPayload;
+      });
       const photos = [
         ...(exteriorPhotoUrl.trim()
           ? [
@@ -236,12 +288,26 @@ export default function AddListing() {
   };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', paddingBottom: '3rem' }}>
-      <h1 className="mb-4">Host a new room</h1>
+    <>
+      <Navbar />
+      <div className="add-listing-container">
+        <div className="add-listing-header">
+          <h1>Post Your Property</h1>
+          <p className="add-listing-subtitle">
+            {step === 1 && "Let's start with your property location"}
+            {step === 2 && "Tell us about your property details"}
+            {step === 3 && "Your property is now live!"}
+          </p>
+          <div className="step-indicator">
+            <div className={`step-dot ${step >= 1 ? 'active' : ''}`}></div>
+            <div className={`step-dot ${step >= 2 ? 'active' : ''}`}></div>
+            <div className={`step-dot ${step >= 3 ? 'active' : ''}`}></div>
+          </div>
+        </div>
       
       {/* STEP 1: LOCATION */}
       {step === 1 && (
-        <div className="glass-card text-center text-left">
+        <div className="glass-card location-step-card">
           <h2 className="text-center">Where is your property located?</h2>
           <p className="mb-4 text-center">We'll precisely pinpoint your location to help tenants find you easily.</p>
           
@@ -249,21 +315,21 @@ export default function AddListing() {
             <button 
               className="btn btn-primary" 
               onClick={handleFetchLocation}
-              disabled={isLocating}
+              disabled={isLocating || resolvingMapLocation}
             >
               <MapPin size={20} />
-              {isLocating ? 'Locating...' : 'Fetch My Location'}
+              {isLocating ? 'Locating...' : resolvingMapLocation ? 'Updating...' : 'Fetch My Location'}
             </button>
           </div>
 
-          <div style={{ margin: '2rem 0', display: 'flex', alignItems: 'center', color: 'var(--text-muted)' }}>
-            <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }}></div>
-            <span style={{ padding: '0 1rem', fontSize: '0.9rem' }}>OR ENTER MANUALLY</span>
-            <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }}></div>
+          <div className="divider-or">
+            <div className="divider-line"></div>
+            <span>OR ENTER MANUALLY</span>
+            <div className="divider-line"></div>
           </div>
 
-          <form onSubmit={handleManualLocation} className="flex-col" style={{ maxWidth: '400px', margin: '0 auto' }}>
-            <div className="form-group" style={{ textAlign: 'left' }}>
+          <form onSubmit={handleManualLocation} className="flex-col location-form">
+            <div className="form-group">
               <label>Full Property Address</label>
               <textarea 
                 className="input-style" 
@@ -274,19 +340,42 @@ export default function AddListing() {
                 required 
               />
             </div>
-            <button type="submit" className="btn btn-outline" style={{ width: '100%' }}>
+            <button type="submit" className="btn btn-outline w-full">
               Confirm Address
             </button>
           </form>
           
-          {errorMsg && <p className="mt-4 text-center" style={{ color: '#ef4444' }}>{errorMsg}</p>}
+          {errorMsg && <p className="mt-4 text-center add-listing-error">{errorMsg}</p>}
+
+          <div className="map-preview-card">
+            <h3>Location Preview</h3>
+            <GoogleLocationPickerMap
+              center={mapCenter}
+              onSelect={(coords) => void applyLocationFromMap(coords)}
+              className="map-preview-frame"
+            />
+            <p className="profile-map-help">
+              Click on map or drag the marker to update the property location.
+            </p>
+          </div>
+
+          <div className="text-center mt-4">
+            <button
+              type="button"
+              className="btn btn-primary publish-btn"
+              disabled={!canContinueToDetails || isLocating || resolvingMapLocation}
+              onClick={() => setStep(2)}
+            >
+              Continue to Room Details
+            </button>
+          </div>
         </div>
       )}
 
       {/* STEP 2: ROOM DETAILS */}
       {step === 2 && (
         <>
-          <div className="mb-4 flex-row justify-between">
+          <div className="mb-4 flex-row justify-between room-toolbar">
             <h2>Room Details</h2>
             <button className="btn btn-outline" onClick={handleAddRoom}>
               <Plus size={18} /> Add Another Room
@@ -295,12 +384,11 @@ export default function AddListing() {
 
           <div className="flex-col">
             {rooms.map((room, index) => (
-              <div key={room.id} className="glass-card" style={{ position: 'relative' }}>
+              <div key={room.id} className="glass-card room-card">
                 {rooms.length > 1 && (
                   <button 
                     onClick={() => handleRemoveRoom(room.id)}
-                    className="btn btn-danger"
-                    style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', padding: '0.5rem' }}
+                    className="btn btn-outline room-remove-btn"
                     aria-label="Remove room"
                   >
                     <Trash2 size={18} />
@@ -309,7 +397,7 @@ export default function AddListing() {
                 
                 <h3 className="mb-4">Room {index + 1}</h3>
                 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                <div className="room-grid">
 
                   <div className="form-group">
                     <label>Property Type</label>
@@ -318,10 +406,9 @@ export default function AddListing() {
                       value={room.propertyTypeId}
                       onChange={(e) => updateRoom(room.id, 'propertyTypeId', parseInt(e.target.value))}
                     >
-                      <option value={1}>Apartment</option>
-                      <option value={2}>Independent House</option>
-                      <option value={3}>PG</option>
-                      <option value={4}>Hostel</option>
+                      <option value={1}>PG</option>
+                      <option value={2}>Individual</option>
+                      <option value={3}>Flat</option>
                     </select>
                   </div>
                   
@@ -452,7 +539,7 @@ export default function AddListing() {
                     />
                   </div>
 
-                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <div className="form-group room-span-full">
                     <label>Description</label>
                     <textarea
                       className="input-style"
@@ -463,7 +550,7 @@ export default function AddListing() {
                     />
                   </div>
 
-                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <div className="form-group room-span-full">
                     <label className="checkbox-group">
                       <input 
                         type="checkbox" 
@@ -493,33 +580,24 @@ export default function AddListing() {
                     }}
                     placeholder="https://example.com/exterior.jpg"
                   />
-                  <div className="flex-row">
-                    <label className="btn btn-outline" style={{ cursor: 'pointer' }}>
+                  <div className="flex-row image-upload-actions">
+                    <label className="btn btn-outline image-upload-btn">
                       Upload File
                       <input
                         type="file"
                         accept="image/*"
                         onChange={(e) => void handleFileInput(e, 'exterior')}
-                        style={{ display: 'none' }}
+                        className="hidden-input"
                       />
                     </label>
-                    <label className="btn btn-outline" style={{ cursor: 'pointer' }}>
-                      Capture Photo
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={(e) => void handleFileInput(e, 'exterior')}
-                        style={{ display: 'none' }}
-                      />
-                    </label>
+                   
                   </div>
                   {uploadingSlot === 'exterior' && <p>Uploading exterior image...</p>}
                   {exteriorPhotoUrl.trim() && (
                     <img
                       src={exteriorPhotoUrl}
                       alt="Exterior preview"
-                      style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: '10px', marginTop: '0.5rem' }}
+                      className="image-preview"
                     />
                   )}
                 </div>
@@ -542,33 +620,24 @@ export default function AddListing() {
                       }
                       placeholder="https://example.com/room.jpg"
                     />
-                    <div className="flex-row">
-                      <label className="btn btn-outline" style={{ cursor: 'pointer' }}>
+                    <div className="flex-row image-upload-actions">
+                      <label className="btn btn-outline image-upload-btn">
                         Upload File
                         <input
                           type="file"
                           accept="image/*"
                           onChange={(e) => void handleFileInput(e, index === 0 ? 'room-0' : 'room-1')}
-                          style={{ display: 'none' }}
+                          className="hidden-input"
                         />
                       </label>
-                      <label className="btn btn-outline" style={{ cursor: 'pointer' }}>
-                        Capture Photo
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          onChange={(e) => void handleFileInput(e, index === 0 ? 'room-0' : 'room-1')}
-                          style={{ display: 'none' }}
-                        />
-                      </label>
+                    
                     </div>
                     {uploadingSlot === (index === 0 ? 'room-0' : 'room-1') && <p>Uploading room image...</p>}
                     {url.trim() && (
                       <img
                         src={url}
                         alt={`Room ${index + 1} preview`}
-                        style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: '10px', marginTop: '0.5rem' }}
+                        className="image-preview"
                       />
                     )}
                   </div>
@@ -576,12 +645,11 @@ export default function AddListing() {
               </div>
             </div>
 
-            {errorMsg && <p className="text-center" style={{ color: '#ef4444' }}>{errorMsg}</p>}
+            {errorMsg && <p className="text-center add-listing-error">{errorMsg}</p>}
 
-            <div className="text-center mt-4">
+            <div className="text-center mt-4 publish-wrap">
               <button 
-                className="btn btn-primary" 
-                style={{ width: '200px' }}
+                className="btn btn-primary publish-btn" 
                 onClick={handleSubmit}
                 disabled={isSubmitting}
               >
@@ -594,15 +662,21 @@ export default function AddListing() {
 
       {/* STEP 3: SUCCESS */}
       {step === 3 && (
-        <div className="glass-card text-center">
-          <CheckCircle2 color="#10b981" size={64} style={{ margin: '0 auto 1.5rem' }} />
+        <div className="glass-card text-center success-card">
+          <CheckCircle2 color="#10b981" size={72} className="success-icon" />
           <h2>Successfully Published!</h2>
-          <p className="mb-4">Your rooms are now active and visible to potential tenants.</p>
-          <button className="btn btn-outline" onClick={() => navigate('/home')}>
-            Return to Dashboard
-          </button>
+          <p className="mb-4">Your property is now active and visible to potential tenants.</p>
+          <div className="success-actions">
+            <button className="btn btn-primary" onClick={() => navigate('/listings')}>
+              View All Listings
+            </button>
+            <button className="btn btn-outline" onClick={() => navigate('/profile')}>
+              Go to Profile
+            </button>
+          </div>
         </div>
       )}
     </div>
+    </>
   );
 }

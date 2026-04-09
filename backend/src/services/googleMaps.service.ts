@@ -18,8 +18,11 @@ export class GoogleMapsService {
     if (!apiKey) {
       throw new Error("Missing Google Maps API Key");
     }
+    console.log(lat, lng);
 
     const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
+
+      
 
     const response = await fetch(url);
     if (!response.ok) {

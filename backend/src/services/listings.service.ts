@@ -34,6 +34,7 @@ export interface ListingItem {
   listingId: string;
   landlordId: string;
   landlordName: string;
+  landlordGender: string | null;
   title: string;
   description: string | null;
   floorLevelId: number;
@@ -44,6 +45,7 @@ export interface ListingItem {
   allowSmoking: boolean;
   foodPreferenceId: number;
   foodPreferenceName: string;
+  propertyTypeId: number | null;
   monthlyRent: number;
   securityDeposit: number | null;
   availableFrom: string;
@@ -84,6 +86,8 @@ export interface ListingFilters {
   floorLevelId?: number[];
   furnishingTypeId?: number[];
   foodPreferenceId?: number[];
+  propertyTypeId?: number[];
+  gender?: string[];
   allowSmoking?: boolean[];
   sortBy?: "newest" | "rent_asc" | "rent_desc";
 }
@@ -476,8 +480,16 @@ export class ListingsService {
     await transaction.begin();
 
     try {
+      const listingColumnsResult = await new sql.Request(transaction).query(`
+        SELECT name AS ColumnName
+        FROM sys.columns
+        WHERE object_id = OBJECT_ID('dbo.Listings')
+      `);
+      const listingColumns = new Set(
+        listingColumnsResult.recordset.map((c: { ColumnName: string }) => c.ColumnName)
+      );
+
       const listingIds: string[] = [];
-      const request = new sql.Request(transaction);
 
       // We use a parameterized query for each room to ensure safe inserts
       // SQL Server node driver allows loop-based request inputs directly against a transaction
@@ -508,18 +520,53 @@ export class ListingsService {
         iterReq.input("Latitude", sql.Decimal(9, 6), location.latitude);
         iterReq.input("Longitude", sql.Decimal(9, 6), location.longitude);
 
+        const insertColumns: string[] = [
+          "LandlordId",
+          "Title",
+          "FloorLevelId",
+          "FurnishingTypeId",
+          "MaxOccupants",
+          "AllowSmoking",
+          "FoodPreferenceId",
+          "MonthlyRent",
+          "AvailableFrom",
+          "AddressLine",
+          "Colony",
+          "City",
+          "State",
+          "Pincode",
+          "Latitude",
+          "Longitude",
+        ];
+        const insertParams: string[] = [
+          "@LandlordId",
+          "@Title",
+          "@FloorLevelId",
+          "@FurnishingTypeId",
+          "@MaxOccupants",
+          "@AllowSmoking",
+          "@FoodPreferenceId",
+          "@MonthlyRent",
+          "@AvailableFrom",
+          "@AddressLine",
+          "@Colony",
+          "@City",
+          "@State",
+          "@Pincode",
+          "@Latitude",
+          "@Longitude",
+        ];
+
+        if (listingColumns.has("PropertyTypeId") && room.propertyTypeId) {
+          insertColumns.push("PropertyTypeId");
+          insertParams.push("@PropertyTypeId");
+          iterReq.input("PropertyTypeId", sql.TinyInt, room.propertyTypeId);
+        }
+
         const result = await iterReq.query(`
-          INSERT INTO dbo.Listings (
-            LandlordId, Title, FloorLevelId, FurnishingTypeId, MaxOccupants, AllowSmoking,
-            FoodPreferenceId, MonthlyRent, AvailableFrom,
-            AddressLine, Colony, City, State, Pincode, Latitude, Longitude
-          )
+          INSERT INTO dbo.Listings (${insertColumns.join(", ")})
           OUTPUT INSERTED.ListingId
-          VALUES (
-            @LandlordId, @Title, @FloorLevelId, @FurnishingTypeId, @MaxOccupants, @AllowSmoking,
-            @FoodPreferenceId, @MonthlyRent, @AvailableFrom,
-            @AddressLine, @Colony, @City, @State, @Pincode, @Latitude, @Longitude
-          );
+          VALUES (${insertParams.join(", ")});
         `);
         
         listingIds.push(result.recordset[0].ListingId);
@@ -545,11 +592,77 @@ export class ListingsService {
     const pool = await getPool();
     const offset = (page - 1) * limit;
 
+    const listingsColumnsResult = await pool.request().query(`
+      SELECT name AS ColumnName
+      FROM sys.columns
+      WHERE object_id = OBJECT_ID('dbo.Listings')
+    `);
+    const listingsColumns = new Set(
+      listingsColumnsResult.recordset.map((c: { ColumnName: string }) => c.ColumnName)
+    );
+    const hasPropertyTypeId = listingsColumns.has("PropertyTypeId");
+
+    const usersColumnsResult = await pool.request().query(`
+      SELECT name AS ColumnName
+      FROM sys.columns
+      WHERE object_id = OBJECT_ID('dbo.Users')
+    `);
+    const usersColumns = new Set(
+      usersColumnsResult.recordset.map((c: { ColumnName: string }) => c.ColumnName)
+    );
+    const hasUserGender = usersColumns.has("Gender");
+
     const whereClauses: string[] = ["l.StatusId = 1"];
     const sortBy = filters.sortBy ?? "newest";
 
-    if (filters.search && filters.search.trim()) {
-      whereClauses.push("(l.Colony LIKE @Search OR l.City LIKE @Search OR l.State LIKE @Search)");
+    const searchKeywords = (filters.search ?? "")
+      .trim()
+      .split(/\s+/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+      .slice(0, 8);
+
+    if (searchKeywords.length > 0) {
+      const searchTokenClauses = searchKeywords.map(
+        (_, idx) => `(
+          l.Title LIKE @Search${idx}
+          OR ISNULL(l.Description, '') LIKE @Search${idx}
+          OR l.AddressLine LIKE @Search${idx}
+          OR l.Colony LIKE @Search${idx}
+          OR l.City LIKE @Search${idx}
+          OR l.State LIKE @Search${idx}
+          OR l.Pincode LIKE @Search${idx}
+          OR u.FullName LIKE @Search${idx}
+          OR fl.FloorName LIKE @Search${idx}
+          OR ft.FurnishingName LIKE @Search${idx}
+          OR fp.PreferenceName LIKE @Search${idx}
+          ${
+            hasPropertyTypeId
+              ? `OR (
+            CASE
+              WHEN l.PropertyTypeId = 1 THEN 'PG'
+              WHEN l.PropertyTypeId = 2 THEN 'Individual'
+              WHEN l.PropertyTypeId = 3 THEN 'Flat'
+              ELSE ''
+            END
+          ) LIKE @Search${idx}`
+              : ""
+          }
+          OR REPLACE(l.Title, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(ISNULL(l.Description, ''), ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(l.AddressLine, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(l.Colony, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(l.City, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(l.State, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(l.Pincode, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(u.FullName, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(fl.FloorName, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(ft.FurnishingName, ' ', '') LIKE @SearchCompact${idx}
+          OR REPLACE(fp.PreferenceName, ' ', '') LIKE @SearchCompact${idx}
+        )`
+      );
+
+      whereClauses.push(`(${searchTokenClauses.join(" OR ")})`);
     }
     if (filters.city && filters.city.trim()) {
       whereClauses.push("l.City = @City");
@@ -568,6 +681,14 @@ export class ListingsService {
     const uniqueFoodPreferenceIds = [
       ...new Set((filters.foodPreferenceId ?? []).filter(Number.isFinite)),
     ];
+    const uniquePropertyTypeIds = [
+      ...new Set((filters.propertyTypeId ?? []).filter(Number.isFinite)),
+    ];
+    const uniqueGender = [
+      ...new Set((filters.gender ?? []).map((item) => item.trim().toLowerCase())),
+    ]
+      .filter((item) => item === "male" || item === "female")
+      .map((item) => (item === "male" ? "Male" : "Female"));
     const uniqueAllowSmoking = [...new Set(filters.allowSmoking ?? [])];
 
     if (uniqueMaxOccupants.length > 0) {
@@ -594,6 +715,18 @@ export class ListingsService {
           .join(", ")})`
       );
     }
+    if (hasPropertyTypeId && uniquePropertyTypeIds.length > 0) {
+      whereClauses.push(
+        `l.PropertyTypeId IN (${uniquePropertyTypeIds
+          .map((_, idx) => `@PropertyTypeId${idx}`)
+          .join(", ")})`
+      );
+    }
+    if (hasUserGender && uniqueGender.length > 0) {
+      whereClauses.push(
+        `u.Gender IN (${uniqueGender.map((_, idx) => `@Gender${idx}`).join(", ")})`
+      );
+    }
     if (uniqueAllowSmoking.length > 0) {
       whereClauses.push(
         `l.AllowSmoking IN (${uniqueAllowSmoking.map((_, idx) => `@AllowSmoking${idx}`).join(", ")})`
@@ -601,9 +734,10 @@ export class ListingsService {
     }
 
     const applyFilterParams = (request: sql.Request) => {
-      if (filters.search && filters.search.trim()) {
-        request.input("Search", sql.NVarChar(160), `%${filters.search.trim()}%`);
-      }
+      searchKeywords.forEach((keyword, idx) => {
+        request.input(`Search${idx}`, sql.NVarChar(160), `%${keyword}%`);
+        request.input(`SearchCompact${idx}`, sql.NVarChar(160), `%${keyword.replace(/\s+/g, "")}%`);
+      });
 
       if (filters.city && filters.city.trim()) {
         request.input("City", sql.NVarChar(100), filters.city.trim());
@@ -629,6 +763,16 @@ export class ListingsService {
       uniqueFoodPreferenceIds.forEach((value, idx) => {
         request.input(`FoodPreferenceId${idx}`, sql.TinyInt, value);
       });
+      if (hasPropertyTypeId) {
+        uniquePropertyTypeIds.forEach((value, idx) => {
+          request.input(`PropertyTypeId${idx}`, sql.TinyInt, value);
+        });
+      }
+      if (hasUserGender) {
+        uniqueGender.forEach((value, idx) => {
+          request.input(`Gender${idx}`, sql.VarChar(10), value);
+        });
+      }
       uniqueAllowSmoking.forEach((value, idx) => {
         request.input(`AllowSmoking${idx}`, sql.Bit, value);
       });
@@ -648,6 +792,10 @@ export class ListingsService {
     const totalResult = await totalReq.query(`
       SELECT COUNT(1) AS TotalCount
       FROM dbo.Listings l
+      JOIN dbo.Users u ON u.UserId = l.LandlordId
+      JOIN dbo.FloorLevels fl ON fl.FloorLevelId = l.FloorLevelId
+      JOIN dbo.FurnishingTypes ft ON ft.FurnishingTypeId = l.FurnishingTypeId
+      JOIN dbo.FoodPreferences fp ON fp.FoodPreferenceId = l.FoodPreferenceId
       WHERE ${whereSql}
     `);
 
@@ -661,6 +809,7 @@ export class ListingsService {
           l.ListingId AS listingId,
           l.LandlordId AS landlordId,
           u.FullName AS landlordName,
+          ${hasUserGender ? "u.Gender" : "NULL"} AS landlordGender,
           l.Title AS title,
           l.Description AS description,
           l.FloorLevelId AS floorLevelId,
@@ -671,6 +820,7 @@ export class ListingsService {
           l.AllowSmoking AS allowSmoking,
           l.FoodPreferenceId AS foodPreferenceId,
           fp.PreferenceName AS foodPreferenceName,
+          ${hasPropertyTypeId ? "l.PropertyTypeId" : "NULL"} AS propertyTypeId,
           l.MonthlyRent AS monthlyRent,
           l.SecurityDeposit AS securityDeposit,
           CONVERT(VARCHAR(10), l.AvailableFrom, 23) AS availableFrom,
