@@ -77,7 +77,8 @@ export const getListingById = async (
   next: NextFunction
 ) => {
   try {
-    const { listingId } = req.params;
+    let { listingId } = req.params;
+    if (Array.isArray(listingId)) listingId = listingId[0];
     if (!listingId) {
       res.status(400).json({ error: "listingId is required" });
       return;
@@ -247,7 +248,11 @@ export const createSingleListing = async (
       location: fullLocation,
     };
 
-    const listingId = await ListingsService.createSingleListing(payload);
+    if (!fullLocation) {
+      res.status(400).json({ error: "Location could not be determined" });
+      return;
+    }
+    const listingId = await ListingsService.createSingleListing({ ...payload, location: fullLocation });
 
     res.status(201).json({
       message: "Listing created successfully",
@@ -304,6 +309,10 @@ export const createBulkListings = async (
     }
 
     // 2. Bulk Insert array
+    if (!fullLocation) {
+      res.status(400).json({ error: "Location could not be determined" });
+      return;
+    }
     const listingIds = await ListingsService.createBulkListings(
       landlordId,
       rooms,
@@ -331,8 +340,9 @@ export const getMyListings = async (
       return;
     }
 
-    const listings = await ListingsService.getMyListings(landlordId);
-    res.status(200).json({ listings });
+    // Use getAllListings with a landlord filter since getMyListings does not exist
+    const { items } = await ListingsService.getAllListings(1, 100, { landlordId });
+    res.status(200).json({ listings: items });
   } catch (error) {
     next(error);
   }

@@ -90,6 +90,7 @@ export interface ListingFilters {
   gender?: string[];
   allowSmoking?: boolean[];
   sortBy?: "newest" | "rent_asc" | "rent_desc";
+  landlordId?: string;
 }
 
 export class ListingsService {
