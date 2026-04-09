@@ -62,5 +62,5 @@ jobs:
         with:
           app-name: 'roommate-server'
           slot-name: 'Production'
-          package: .
+          package: backend
           
