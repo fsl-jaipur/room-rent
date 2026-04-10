@@ -1,19 +1,41 @@
-import { useMemo, useState } from 'react';
-import { MapPin, Plus, Trash2, Send, CheckCircle2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, Trash2, Send, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, ApiError } from '../../lib/api';
 import Navbar from '../../components/Navbar';
-import GoogleLocationPickerMap from '../../components/GoogleLocationPickerMap';
 import {
   forwardGeocode,
-  reverseGeocode,
-  type Coordinates,
 } from '../../lib/googleMaps';
 
 interface LocationState {
   latitude: number;
   longitude: number;
 }
+
+const FALLBACK_AREA_OPTIONS = [
+  'Sanganer',
+  'Malviya Nagar',
+  'Mansarovar',
+  'Jagatpura',
+  'Vaishali Nagar',
+  'Tonk Phatak',
+  'Vidhyadhar Nagar',
+];
+
+const FALLBACK_COLONY_OPTIONS_BY_AREA: Record<string, string[]> = {
+  Sanganer: ['Saini Colony', 'Panchwati Colony', 'Sitaram Colony', 'Nand Colony', 'Kohinoor Nagar'],
+  'Malviya Nagar': ['Model Town', 'Shanti Nagar', 'Patel Colony', 'Sector 1', 'Sector 9'],
+  Mansarovar: ['Patel Marg', 'Agarwal Farm', 'Rajat Path', 'Shipra Path', 'Madhyam Marg'],
+  Jagatpura: ['Ramnagariya', 'Ashadeep Green Avenue', 'Mahima Panache', 'Ramnagariya South'],
+  'Vaishali Nagar': ['Gandhi Path', 'Nemi Nagar', 'Chitrakoot', 'Hanuman Nagar', 'Queens Road'],
+  'Tonk Phatak': ['Barkat Nagar', 'Gopalpura Bypass', 'Mahesh Nagar', 'Lal Kothi'],
+  'Vidhyadhar Nagar': ['Sector 1', 'Sector 2', 'Sector 3', 'Sector 5', 'Central Spine'],
+};
+
+type LocationOption = {
+  area: string;
+  colonies: string[];
+};
 
 interface RoomDetails {
   id: string; // for React keys
@@ -33,33 +55,29 @@ interface RoomDetails {
   doubleBedCount: number;
 }
 type RoomPayload = Omit<RoomDetails, 'id'>;
-type ListingPhoto = {
-  photoType: 'Exterior' | 'Room';
-  photoUrl: string;
-  blobId?: string;
-  displayOrder?: number;
-};
 
 type UploadSlot = 'exterior' | `room-${number}-${number}`;
-
-const DEFAULT_COORDS = { latitude: 26.9124, longitude: 75.7873 };
 const IMAGES_PER_ROOM = 3;
 const createEmptyRoomImages = () => Array.from({ length: IMAGES_PER_ROOM }, () => '');
+const createEmptyRoomFiles = () => Array.from({ length: IMAGES_PER_ROOM }, () => null as File | null);
 
 export default function AddListing() {
   const navigate = useNavigate();
   const [step, setStep] = useState<1 | 2 | 3>(1); // 1: Location, 2: Rooms, 3: Success
   const [location, setLocation] = useState<LocationState | null>(null);
   const [address, setAddress] = useState<string>('');
-  const [isLocating, setIsLocating] = useState(false);
-  const [resolvingMapLocation, setResolvingMapLocation] = useState(false);
+  const [houseNo, setHouseNo] = useState('');
+  const [landmark, setLandmark] = useState('');
+  const [pincode, setPincode] = useState('');
+  const [area, setArea] = useState('');
+  const [colony, setColony] = useState('');
+  const [locationOptions, setLocationOptions] = useState<LocationOption[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [exteriorPhotoUrl, setExteriorPhotoUrl] = useState('');
-  const [exteriorBlobId, setExteriorBlobId] = useState('');
+  const [exteriorPhotoFile, setExteriorPhotoFile] = useState<File | null>(null);
   const [roomPhotoUrls, setRoomPhotoUrls] = useState<string[][]>([createEmptyRoomImages()]);
-  const [roomBlobIds, setRoomBlobIds] = useState<string[][]>([createEmptyRoomImages()]);
-  const [uploadingSlot, setUploadingSlot] = useState<UploadSlot | null>(null);
+  const [roomPhotoFiles, setRoomPhotoFiles] = useState<(File | null)[][]>([createEmptyRoomFiles()]);
   
   const [rooms, setRooms] = useState<RoomDetails[]>([
     {
@@ -81,76 +99,86 @@ export default function AddListing() {
     }
   ]);
 
-  const mapCenter = useMemo<Coordinates>(() => {
-    if (!location) return { lat: DEFAULT_COORDS.latitude, lng: DEFAULT_COORDS.longitude };
-    return { lat: location.latitude, lng: location.longitude };
-  }, [location]);
+  const areaToColonies = useMemo(() => {
+    if (locationOptions.length === 0) return FALLBACK_COLONY_OPTIONS_BY_AREA;
+    const mapped: Record<string, string[]> = {};
+    locationOptions.forEach((item) => {
+      mapped[item.area] = item.colonies;
+    });
+    return mapped;
+  }, [locationOptions]);
+  const areaOptions = useMemo(
+    () => (locationOptions.length ? locationOptions.map((item) => item.area) : FALLBACK_AREA_OPTIONS),
+    [locationOptions]
+  );
+  const colonyOptions = useMemo(() => (area ? (areaToColonies[area] ?? []) : []), [area, areaToColonies]);
 
-  const canContinueToDetails = Boolean(location || address.trim().length > 5);
-
-  const applyLocationFromMap = async (coords: Coordinates) => {
-    setLocation({ latitude: coords.lat, longitude: coords.lng });
-    setResolvingMapLocation(true);
-    setErrorMsg('');
-    try {
-      const exactAddress = await reverseGeocode(coords.lat, coords.lng);
-      setAddress(exactAddress);
-    } catch {
-      setAddress(`${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`);
-    } finally {
-      setResolvingMapLocation(false);
-    }
-  };
-
-  const handleFetchLocation = () => {
-    setIsLocating(true);
-    setErrorMsg('');
-    
-    if (!navigator.geolocation) {
-      setErrorMsg('Geolocation is not supported by your browser');
-      setIsLocating(false);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const nextLocation = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        };
-        setLocation(nextLocation);
-        try {
-          const exactAddress = await reverseGeocode(nextLocation.latitude, nextLocation.longitude);
-          setAddress(exactAddress);
-        } catch {
-          setAddress(`${nextLocation.latitude.toFixed(6)}, ${nextLocation.longitude.toFixed(6)}`);
-        } finally {
-          setIsLocating(false);
+  useEffect(() => {
+    let mounted = true;
+    const loadLocationOptions = async () => {
+      try {
+        const response = await apiFetch<{ items: LocationOption[] }>('/api/listings/location-options', {
+          method: 'GET',
+        });
+        if (!mounted) return;
+        if (Array.isArray(response.items) && response.items.length > 0) {
+          setLocationOptions(response.items);
         }
-      },
-      (error) => {
-        console.error(error);
-        setErrorMsg('Failed to fetch location. Please ensure you have granted location permissions.');
-        setIsLocating(false);
-      },
-      { enableHighAccuracy: true }
-    );
-  };
+      } catch (err: unknown) {
+        if (err instanceof ApiError && err.status === 401) {
+          navigate('/login');
+        }
+      }
+    };
+    void loadLocationOptions();
+    return () => {
+      mounted = false;
+    };
+  }, [navigate]);
+  const composedAddress = useMemo(() => {
+    const parts = [
+      houseNo.trim(),
+      landmark.trim(),
+      colony.trim(),
+      area.trim(),
+      pincode.trim(),
+      'Jaipur',
+      'Rajasthan',
+      'India',
+    ].filter(Boolean);
+    return parts.join(', ');
+  }, [houseNo, landmark, colony, area, pincode]);
+  const canContinueToDetails = Boolean(
+    location || address.trim().length > 5 || composedAddress.trim().length > 5
+  );
 
-  const handleManualLocation = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = address.trim();
-    if (trimmed.length <= 5) {
-      setErrorMsg('Please enter a full, valid address');
-      return;
+  const prepareManualLocation = async () => {
+    if (!area || !colony) {
+      setErrorMsg('Please select both area and colony');
+      return false;
+    }
+    if (pincode && !/^\d{6}$/.test(pincode.trim())) {
+      setErrorMsg('Please enter a valid 6-digit pincode');
+      return false;
     }
     setErrorMsg('');
+    const trimmed = composedAddress.trim();
+    setAddress(trimmed);
     const coords = await forwardGeocode(trimmed);
     if (coords) {
       setLocation({ latitude: coords.lat, longitude: coords.lng });
     } else {
       setLocation(null);
     }
+    return true;
+  };
+
+  const handleContinueToDetails = async () => {
+    if (!location) {
+      const ok = await prepareManualLocation();
+      if (!ok) return;
+    }
+    setStep(2);
   };
 
   const handleAddRoom = () => {
@@ -175,7 +203,7 @@ export default function AddListing() {
       }
     ]);
     setRoomPhotoUrls((prev) => [...prev, createEmptyRoomImages()]);
-    setRoomBlobIds((prev) => [...prev, createEmptyRoomImages()]);
+    setRoomPhotoFiles((prev) => [...prev, createEmptyRoomFiles()]);
   };
 
   const handleRemoveRoom = (id: string) => {
@@ -184,7 +212,7 @@ export default function AddListing() {
     if (removeIndex === -1) return;
     setRooms(rooms.filter(r => r.id !== id));
     setRoomPhotoUrls((prev) => prev.filter((_, index) => index !== removeIndex));
-    setRoomBlobIds((prev) => prev.filter((_, index) => index !== removeIndex));
+    setRoomPhotoFiles((prev) => prev.filter((_, index) => index !== removeIndex));
   };
 
   const updateRoom = <K extends keyof RoomDetails>(
@@ -207,66 +235,49 @@ export default function AddListing() {
     fallback: number
   ) => Math.min(max, Math.max(min, toNumberOr(value, fallback)));
 
-  const uploadImageForSlot = async (file: File, slot: UploadSlot) => {
-    try {
-      setErrorMsg('');
-      setUploadingSlot(slot);
-      const formData = new FormData();
-      formData.append('image', file);
-
-      const response = await apiFetch<{ url: string; blobId: string }>('/api/uploads/image', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (slot === 'exterior') {
-        setExteriorPhotoUrl(response.url);
-        setExteriorBlobId(response.blobId);
-        return;
-      }
-
-      const match = /^room-(\d+)-(\d+)$/.exec(slot);
-      if (!match) return;
-      const roomIndex = Number(match[1]);
-      const imageIndex = Number(match[2]);
-      if (!Number.isFinite(roomIndex) || !Number.isFinite(imageIndex)) return;
-      if (roomIndex < 0 || imageIndex < 0 || imageIndex >= IMAGES_PER_ROOM) return;
-
-      setRoomPhotoUrls((prev) =>
-        prev.map((roomImages, i) =>
-          i === roomIndex ? roomImages.map((value, j) => (j === imageIndex ? response.url : value)) : roomImages
-        )
-      );
-      setRoomBlobIds((prev) =>
-        prev.map((roomImages, i) =>
-          i === roomIndex
-            ? roomImages.map((value, j) => (j === imageIndex ? response.blobId : value))
-            : roomImages
-        )
-      );
-    } catch (err: unknown) {
-      if (err instanceof ApiError && err.status === 401) {
-        navigate('/login');
-        return;
-      }
-      setErrorMsg(err instanceof Error ? err.message : 'Image upload failed');
-    } finally {
-      setUploadingSlot(null);
-    }
-  };
-
   const handleFileInput = async (
     event: React.ChangeEvent<HTMLInputElement>,
     slot: UploadSlot
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    await uploadImageForSlot(file, slot);
+    if (slot === 'exterior') {
+      setExteriorPhotoFile(file);
+      setExteriorPhotoUrl(URL.createObjectURL(file));
+      event.target.value = '';
+      return;
+    }
+
+    const match = /^room-(\d+)-(\d+)$/.exec(slot);
+    if (!match) {
+      event.target.value = '';
+      return;
+    }
+    const roomIndex = Number(match[1]);
+    const imageIndex = Number(match[2]);
+    if (!Number.isFinite(roomIndex) || !Number.isFinite(imageIndex)) {
+      event.target.value = '';
+      return;
+    }
+
+    setRoomPhotoFiles((prev) =>
+      prev.map((roomImages, i) =>
+        i === roomIndex ? roomImages.map((value, j) => (j === imageIndex ? file : value)) : roomImages
+      )
+    );
+    setRoomPhotoUrls((prev) =>
+      prev.map((roomImages, i) =>
+        i === roomIndex
+          ? roomImages.map((value, j) => (j === imageIndex ? URL.createObjectURL(file) : value))
+          : roomImages
+      )
+    );
     event.target.value = '';
   };
 
   const handleSubmit = async () => {
-    if (!location && !address) return;
+    const finalAddress = address.trim() || composedAddress.trim();
+    if (!location && !finalAddress) return;
     setIsSubmitting(true);
     setErrorMsg('');
 
@@ -277,66 +288,45 @@ export default function AddListing() {
         delete roomPayload.id;
         return roomPayload as RoomPayload;
       });
-      const isBulk = payloadRooms.length > 1;
-
-      const buildPhotosForRoom = (roomIndex: number): ListingPhoto[] => {
-        const photos: ListingPhoto[] = [];
-        if (exteriorPhotoUrl.trim()) {
-          photos.push({
-            photoType: 'Exterior',
-            photoUrl: exteriorPhotoUrl.trim(),
-            ...(exteriorBlobId ? { blobId: exteriorBlobId } : {}),
-          });
-        }
-        const roomImages = roomPhotoUrls[roomIndex] || [];
-        const roomImageBlobIds = roomBlobIds[roomIndex] || [];
-        for (let imageIndex = 0; imageIndex < IMAGES_PER_ROOM; imageIndex += 1) {
-          const roomPhotoUrl = (roomImages[imageIndex] || '').trim();
-          if (!roomPhotoUrl) continue;
-          photos.push({
-            photoType: 'Room',
-            photoUrl: roomPhotoUrl,
-            ...(roomImageBlobIds[imageIndex] ? { blobId: roomImageBlobIds[imageIndex] } : {}),
-            displayOrder: photos.length + 1,
-          });
-        }
-        return photos;
+      const normalizeUrl = (value: string) => {
+        const trimmed = value.trim();
+        if (!trimmed || trimmed.startsWith("blob:")) return "";
+        return trimmed;
       };
 
-      if (!isBulk) {
-        await apiFetch('/api/listings', {
-          method: 'POST',
-          body: JSON.stringify({
-            location,
-            address,
-            room: payloadRooms[0],
-            photos: buildPhotosForRoom(0),
-          }),
-        });
-      } else {
-        const hasAnyPhotos =
-          exteriorPhotoUrl.trim().length > 0 ||
-          roomPhotoUrls.some((roomImages) => roomImages.some((url) => url.trim()));
+      const formData = new FormData();
+      formData.append(
+        "data",
+        JSON.stringify({
+          location,
+          address: finalAddress,
+          rooms: payloadRooms,
+          exteriorPhotoUrl: exteriorPhotoFile ? "" : normalizeUrl(exteriorPhotoUrl),
+          roomPhotoUrls: roomPhotoUrls.map((roomImages, roomIndex) =>
+            roomImages.map((url, imageIndex) => {
+              if (roomPhotoFiles[roomIndex]?.[imageIndex]) return "";
+              return normalizeUrl(url);
+            })
+          ),
+        })
+      );
 
-        if (!hasAnyPhotos) {
-          await apiFetch('/api/listings/bulk', {
-            method: 'POST',
-            body: JSON.stringify({ location, address, rooms: payloadRooms }),
-          });
-        } else {
-          for (let index = 0; index < payloadRooms.length; index += 1) {
-            await apiFetch('/api/listings', {
-              method: 'POST',
-              body: JSON.stringify({
-                location,
-                address,
-                room: payloadRooms[index],
-                photos: buildPhotosForRoom(index),
-              }),
-            });
-          }
+      if (exteriorPhotoFile) {
+        formData.append("exteriorFile", exteriorPhotoFile);
+      }
+
+      for (let roomIndex = 0; roomIndex < roomPhotoFiles.length; roomIndex += 1) {
+        for (let imageIndex = 0; imageIndex < IMAGES_PER_ROOM; imageIndex += 1) {
+          const file = roomPhotoFiles[roomIndex]?.[imageIndex];
+          if (!file) continue;
+          formData.append(`roomFile-${roomIndex}-${imageIndex}`, file);
         }
       }
+
+      await apiFetch('/api/listings/submit', {
+        method: 'POST',
+        body: formData,
+      });
 
       setStep(3);
     } catch (err: unknown) {
@@ -373,61 +363,91 @@ export default function AddListing() {
         <div className="glass-card location-step-card">
           <h2 className="text-center">Where is your property located?</h2>
           <p className="mb-4 text-center">We'll precisely pinpoint your location to help tenants find you easily.</p>
-          
-          <div className="text-center mb-4">
-            <button 
-              className="btn btn-primary" 
-              onClick={handleFetchLocation}
-              disabled={isLocating || resolvingMapLocation}
-            >
-              <MapPin size={20} />
-              {isLocating ? 'Locating...' : resolvingMapLocation ? 'Updating...' : 'Fetch My Location'}
-            </button>
-          </div>
 
-          <div className="divider-or">
-            <div className="divider-line"></div>
-            <span>OR ENTER MANUALLY</span>
-            <div className="divider-line"></div>
-          </div>
-
-          <form onSubmit={handleManualLocation} className="flex-col location-form">
-            <div className="form-group">
-              <label>Full Property Address</label>
-              <textarea 
-                className="input-style" 
-                placeholder="e.g. Plot No 24, Near SBI Bank, Malviya Nagar, Jaipur, Rajasthan 302017"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                rows={3}
-                required 
-              />
+          <div className="flex-col location-form">
+            <div className="location-fields-grid">
+              <div className="form-group">
+                <label>House No.</label>
+                <input
+                  className="input-style"
+                  placeholder="e.g. 24/7"
+                  value={houseNo}
+                  onChange={(e) => setHouseNo(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label>Landmark (Optional)</label>
+                <input
+                  className="input-style"
+                  placeholder="e.g. Near SBI Bank"
+                  value={landmark}
+                  onChange={(e) => setLandmark(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label>Area</label>
+                <select
+                  className="input-style"
+                  value={area}
+                  onChange={(e) => {
+                    const selectedArea = e.target.value;
+                    setArea(selectedArea);
+                    const validColonies = areaToColonies[selectedArea] ?? [];
+                    if (!validColonies.includes(colony)) {
+                      setColony('');
+                    }
+                  }}
+                  required
+                >
+                  <option value="">Select area</option>
+                  {areaOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Pincode</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  className="input-style"
+                  placeholder="e.g. 302017"
+                  value={pincode}
+                  onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Colony</label>
+                <select
+                  className="input-style"
+                  value={colony}
+                  onChange={(e) => setColony(e.target.value)}
+                  disabled={!area}
+                  required
+                >
+                  <option value="">{area ? 'Select colony' : 'Select area first'}</option>
+                  {colonyOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <button type="submit" className="btn btn-outline w-full">
-              Confirm Address
-            </button>
-          </form>
+          </div>
           
           {errorMsg && <p className="mt-4 text-center add-listing-error">{errorMsg}</p>}
-
-          <div className="map-preview-card">
-            <h3>Location Preview</h3>
-            <GoogleLocationPickerMap
-              center={mapCenter}
-              onSelect={(coords) => void applyLocationFromMap(coords)}
-              className="map-preview-frame"
-            />
-            <p className="profile-map-help">
-              Click on map or drag the marker to update the property location.
-            </p>
-          </div>
 
           <div className="text-center mt-4">
             <button
               type="button"
               className="btn btn-primary publish-btn"
-              disabled={!canContinueToDetails || isLocating || resolvingMapLocation}
-              onClick={() => setStep(2)}
+              disabled={!canContinueToDetails}
+              onClick={() => void handleContinueToDetails()}
             >
               Continue to Room Details
             </button>
@@ -681,11 +701,11 @@ export default function AddListing() {
                                       : roomImages
                                   )
                                 );
-                                setRoomBlobIds((prev) =>
+                                setRoomPhotoFiles((prev) =>
                                   prev.map((roomImages, roomIdx) =>
                                     roomIdx === index
                                       ? roomImages.map((value, imgIdx) =>
-                                          imgIdx === imageIndex ? '' : value
+                                          imgIdx === imageIndex ? null : value
                                         )
                                       : roomImages
                                   )
@@ -704,7 +724,6 @@ export default function AddListing() {
                                 />
                               </label>
                             </div>
-                            {uploadingSlot === slot && <p>Uploading room image...</p>}
                             {imageUrl.trim() && (
                               <img
                                 src={imageUrl}
@@ -744,7 +763,7 @@ export default function AddListing() {
                     value={exteriorPhotoUrl}
                     onChange={(e) => {
                       setExteriorPhotoUrl(e.target.value);
-                      setExteriorBlobId('');
+                      setExteriorPhotoFile(null);
                     }}
                     placeholder="https://example.com/exterior.jpg"
                   />
@@ -760,7 +779,6 @@ export default function AddListing() {
                     </label>
                    
                   </div>
-                  {uploadingSlot === 'exterior' && <p>Uploading exterior image...</p>}
                   {exteriorPhotoUrl.trim() && (
                     <img
                       src={exteriorPhotoUrl}

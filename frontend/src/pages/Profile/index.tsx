@@ -3,9 +3,32 @@ import { useNavigate } from "react-router-dom";
 import { ApiError, apiFetch } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import Navbar from "../../components/Navbar";
-import GoogleLocationPickerMap from "../../components/GoogleLocationPickerMap";
-import { forwardGeocode, reverseGeocode, type Coordinates } from "../../lib/googleMaps";
 import Skeleton from "../../components/Skeleton";
+
+const FALLBACK_AREA_OPTIONS = [
+  "Sanganer",
+  "Malviya Nagar",
+  "Mansarovar",
+  "Jagatpura",
+  "Vaishali Nagar",
+  "Tonk Phatak",
+  "Vidhyadhar Nagar",
+];
+
+const FALLBACK_COLONY_OPTIONS_BY_AREA: Record<string, string[]> = {
+  Sanganer: ["Saini Colony", "Panchwati Colony", "Sitaram Colony", "Nand Colony", "Kohinoor Nagar"],
+  "Malviya Nagar": ["Model Town", "Shanti Nagar", "Patel Colony", "Sector 1", "Sector 9"],
+  Mansarovar: ["Patel Marg", "Agarwal Farm", "Rajat Path", "Shipra Path", "Madhyam Marg"],
+  Jagatpura: ["Ramnagariya", "Ashadeep Green Avenue", "Mahima Panache", "Ramnagariya South"],
+  "Vaishali Nagar": ["Gandhi Path", "Nemi Nagar", "Chitrakoot", "Hanuman Nagar", "Queens Road"],
+  "Tonk Phatak": ["Barkat Nagar", "Gopalpura Bypass", "Mahesh Nagar", "Lal Kothi"],
+  "Vidhyadhar Nagar": ["Sector 1", "Sector 2", "Sector 3", "Sector 5", "Central Spine"],
+};
+
+type LocationOption = {
+  area: string;
+  colonies: string[];
+};
 
 type Profile = {
   id: string;
@@ -38,20 +61,6 @@ const emptyPayload: ProfilePayload = {
   gender: "",
 };
 
-const DEFAULT_COORDINATES: Coordinates = { lat: 26.9124, lng: 75.7873 };
-
-const parseLatLngFromText = (value: string): Coordinates | null => {
-  const match = value.match(
-    /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/
-  );
-  if (!match) return null;
-  const lat = Number(match[1]);
-  const lng = Number(match[2]);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-  return { lat, lng };
-};
-
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { logout } = useAuth();
@@ -59,25 +68,93 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [locating, setLocating] = useState(false);
-  const [mapCoordinates, setMapCoordinates] = useState<Coordinates>(DEFAULT_COORDINATES);
-  const [resolvingMapLocation, setResolvingMapLocation] = useState(false);
+  const [houseNo, setHouseNo] = useState("");
+  const [landmark, setLandmark] = useState("");
+  const [area, setArea] = useState("");
+  const [colony, setColony] = useState("");
+  const [pincode, setPincode] = useState("");
+  const [locationOptions, setLocationOptions] = useState<LocationOption[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  const syncMapFromLocationText = useCallback(async (locationText: string) => {
-    const trimmed = locationText.trim();
-    if (!trimmed) return;
-    const parsed = parseLatLngFromText(trimmed);
-    if (parsed) {
-      setMapCoordinates(parsed);
-      return;
-    }
-    const coords = await forwardGeocode(trimmed);
-    if (coords) {
-      setMapCoordinates(coords);
-    }
-  }, []);
+  const areaToColonies = useMemo(() => {
+    if (locationOptions.length === 0) return FALLBACK_COLONY_OPTIONS_BY_AREA;
+    const mapped: Record<string, string[]> = {};
+    locationOptions.forEach((item) => {
+      mapped[item.area] = item.colonies;
+    });
+    return mapped;
+  }, [locationOptions]);
+  const areaOptions = useMemo(
+    () => (locationOptions.length ? locationOptions.map((item) => item.area) : FALLBACK_AREA_OPTIONS),
+    [locationOptions]
+  );
+  const colonyOptions = area ? (areaToColonies[area] ?? []) : [];
+
+  const composeLocation = (partsInput: {
+    houseNo?: string;
+    landmark?: string;
+    colony?: string;
+    area?: string;
+    pincode?: string;
+  }) => {
+    return [
+      (partsInput.houseNo || "").trim(),
+      (partsInput.landmark || "").trim(),
+      (partsInput.colony || "").trim(),
+      (partsInput.area || "").trim(),
+      (partsInput.pincode || "").trim(),
+      "Jaipur",
+      "Rajasthan",
+      "India",
+    ]
+      .filter(Boolean)
+      .join(", ");
+  };
+
+  const parseLocation = (value: string) => {
+    const parts = value
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const normalized = parts.map((part) => part.toLowerCase());
+
+    const matchedArea =
+      areaOptions.find((candidate) =>
+        normalized.some((piece) => piece.includes(candidate.toLowerCase()))
+      ) || "";
+
+    const matchedPincode =
+      parts.find((part) => /\b\d{6}\b/.test(part))?.match(/\b\d{6}\b/)?.[0] || "";
+
+    const areaColonies = matchedArea ? (areaToColonies[matchedArea] ?? []) : [];
+    const matchedColony =
+      areaColonies.find((candidate) =>
+        normalized.some((piece) => piece.includes(candidate.toLowerCase()))
+      ) ||
+      parts.find((part) => /(colony|nagar|vihar|enclave|society|park|marg)$/i.test(part)) ||
+      "";
+
+    const matchedHouseNo =
+      parts.find((part) => /\d/.test(part) && !/(jaipur|rajasthan|india)/i.test(part) && !/\b\d{6}\b/.test(part)) ||
+      "";
+
+    const usedValues = new Set(
+      [matchedArea, matchedPincode, matchedColony, matchedHouseNo]
+        .map((item) => item.toLowerCase())
+        .filter(Boolean)
+    );
+    const matchedLandmark =
+      parts.find((part) => !usedValues.has(part.toLowerCase()) && !/(jaipur|rajasthan|india)/i.test(part)) || "";
+
+    return {
+      houseNo: matchedHouseNo,
+      landmark: matchedLandmark,
+      area: matchedArea,
+      colony: matchedColony,
+      pincode: matchedPincode,
+    };
+  };
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -88,6 +165,7 @@ export default function ProfilePage() {
       });
 
       const nextProfile = data.profile;
+      const parsedLocation = parseLocation(nextProfile.location || "");
       setForm({
         fullName: nextProfile.fullName || "",
         email: nextProfile.email || "",
@@ -97,7 +175,11 @@ export default function ProfilePage() {
         photo: nextProfile.photo || "",
         gender: nextProfile.gender || "",
       });
-      await syncMapFromLocationText(nextProfile.location || "");
+      setHouseNo(parsedLocation.houseNo);
+      setLandmark(parsedLocation.landmark);
+      setArea(parsedLocation.area);
+      setColony(parsedLocation.colony);
+      setPincode(parsedLocation.pincode);
     } catch (error: unknown) {
       if (error instanceof ApiError && error.status === 401) {
         await logout();
@@ -108,11 +190,45 @@ export default function ProfilePage() {
     } finally {
       setLoading(false);
     }
-  }, [logout, navigate, syncMapFromLocationText]);
+  }, [logout, navigate]);
 
   useEffect(() => {
     void loadProfile();
   }, [loadProfile]);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadLocationOptions = async () => {
+      try {
+        const response = await apiFetch<{ items: LocationOption[] }>("/api/listings/location-options", {
+          method: "GET",
+        });
+        if (!mounted) return;
+        if (Array.isArray(response.items) && response.items.length > 0) {
+          setLocationOptions(response.items);
+        }
+      } catch (error: unknown) {
+        if (error instanceof ApiError && error.status === 401) {
+          await logout();
+          navigate("/login", { replace: true });
+        }
+      }
+    };
+    void loadLocationOptions();
+    return () => {
+      mounted = false;
+    };
+  }, [logout, navigate]);
+
+  useEffect(() => {
+    if (!form.location.trim()) return;
+    const parsed = parseLocation(form.location);
+    if (!houseNo && parsed.houseNo) setHouseNo(parsed.houseNo);
+    if (!landmark && parsed.landmark) setLandmark(parsed.landmark);
+    if (!area && parsed.area) setArea(parsed.area);
+    if (!colony && parsed.colony) setColony(parsed.colony);
+    if (!pincode && parsed.pincode) setPincode(parsed.pincode);
+  }, [form.location, areaOptions, areaToColonies, houseNo, landmark, area, colony, pincode]);
 
   const handleSave = async () => {
     const trimmedAadhaar = form.aadhaar.trim();
@@ -165,61 +281,12 @@ export default function ProfilePage() {
     }
   };
 
-  const updateLocationFromCoordinates = async (coords: Coordinates) => {
-    setMapCoordinates(coords);
-    setResolvingMapLocation(true);
-    setErrorMsg("");
-    try {
-      const exactAddress = await reverseGeocode(coords.lat, coords.lng);
-      setForm((prev) => ({ ...prev, location: exactAddress }));
-    } catch {
-      setForm((prev) => ({
-        ...prev,
-        location: `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`,
-      }));
-    } finally {
-      setResolvingMapLocation(false);
-    }
-  };
-
-  const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setErrorMsg("Geolocation is not supported by your browser");
-      return;
-    }
-
-    setLocating(true);
-    setErrorMsg("");
-    setSuccessMsg("");
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        try {
-          setMapCoordinates({ lat, lng });
-          const exactAddress = await reverseGeocode(lat, lng);
-          setForm((prev) => ({ ...prev, location: exactAddress }));
-        } catch {
-          setForm((prev) => ({ ...prev, location: `${lat.toFixed(6)}, ${lng.toFixed(6)}` }));
-        } finally {
-          setLocating(false);
-        }
-      },
-      () => {
-        setErrorMsg("Unable to fetch current location. Check browser permission.");
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
-
   const avatarFallback = (form.fullName || form.email || "U").trim().charAt(0).toUpperCase();
-  const locationButtonText = useMemo(() => {
-    if (locating) return "Locating...";
-    if (resolvingMapLocation) return "Updating location...";
-    return "Use current location";
-  }, [locating, resolvingMapLocation]);
+
+  useEffect(() => {
+    const locationText = composeLocation({ houseNo, landmark, colony, area, pincode });
+    setForm((prev) => ({ ...prev, location: locationText }));
+  }, [houseNo, landmark, colony, area, pincode]);
 
   if (loading) {
     return (
@@ -358,34 +425,72 @@ export default function ProfilePage() {
 
             <div className="form-group profile-location-field">
               <label>Location</label>
-              <div className="flex-row" style={{ alignItems: "stretch" }}>
+              <div className="location-fields-grid">
                 <input
                   type="text"
                   className="input-style"
-                  value={form.location}
-                  onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
-                  placeholder="City / Area"
+                  value={houseNo}
+                  onChange={(e) => setHouseNo(e.target.value)}
+                  placeholder="House No."
                 />
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  onClick={handleUseCurrentLocation}
-                  disabled={locating || resolvingMapLocation}
-                  style={{ whiteSpace: "nowrap" }}
+                <input
+                  type="text"
+                  className="input-style"
+                  value={landmark}
+                  onChange={(e) => setLandmark(e.target.value)}
+                  placeholder="Landmark (Optional)"
+                />
+                <select
+                  className="input-style"
+                  value={area}
+                  onChange={(e) => {
+                    const selectedArea = e.target.value;
+                    setArea(selectedArea);
+                    const validColonies = areaToColonies[selectedArea] ?? [];
+                    if (!validColonies.includes(colony)) {
+                      setColony("");
+                    }
+                  }}
                 >
-                  {locationButtonText}
-                </button>
-              </div>
-              <div className="profile-map-wrap">
-                <GoogleLocationPickerMap
-                  center={mapCoordinates}
-                  onSelect={(coords) => void updateLocationFromCoordinates(coords)}
-                  className="map-preview-frame profile-map-frame"
+                  <option value="">Select area</option>
+                  {areaOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  className="input-style"
+                  value={pincode}
+                  onChange={(e) => {
+                    setPincode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  }}
+                  placeholder="Pincode"
                 />
-                <p className="profile-map-help">
-                  Click on map or drag the marker to update your location.
-                </p>
+                <select
+                  className="input-style"
+                  value={colony}
+                  onChange={(e) => setColony(e.target.value)}
+                  disabled={!area}
+                >
+                  <option value="">{area ? "Select colony" : "Select area first"}</option>
+                  {colonyOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </div>
+              <input
+                type="text"
+                className="input-style"
+                value={form.location}
+                readOnly
+                style={{ marginTop: "0.75rem" }}
+              />
             </div>
 
             <div className="form-group">

@@ -859,6 +859,16 @@ p {
   text-align: left;
 }
 
+.location-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.location-fields-grid .form-group:last-child {
+  grid-column: 1 / -1;
+}
+
 .divider-or {
   margin: 2rem 0;
   display: flex;
@@ -976,6 +986,16 @@ p {
 .success-card h2 {
   font-size: 1.75rem;
   margin-bottom: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .location-fields-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .location-fields-grid .form-group:last-child {
+    grid-column: auto;
+  }
 }
 
 .success-card p {
