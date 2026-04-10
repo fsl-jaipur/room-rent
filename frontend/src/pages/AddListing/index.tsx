@@ -79,25 +79,6 @@ const createEmptyRoom = (): RoomDetails => ({
   doubleBedCount: '',
 });
 
-const parseDDMMYYYYToISO = (value: string): string | null => {
-  const digits = value.replace(/\D/g, '');
-  if (!/^\d{8}$/.test(digits)) return null;
-
-  const day = Number(digits.slice(0, 2));
-  const month = Number(digits.slice(2, 4));
-  const year = Number(digits.slice(4, 8));
-  const date = new Date(year, month - 1, day);
-
-  const isValidDate =
-    date.getFullYear() === year &&
-    date.getMonth() === month - 1 &&
-    date.getDate() === day;
-
-  if (!isValidDate) return null;
-
-  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-};
-
 export default function AddListing() {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -320,11 +301,12 @@ export default function AddListing() {
         setErrorMsg(`Room ${roomIndex + 1}: Furnishing is required`);
         return;
       }
-      if (room.foodPreferenceId === '') {
+      const isIndividual = room.propertyTypeId === 2;
+      if (!isIndividual && room.foodPreferenceId === '') {
         setErrorMsg(`Room ${roomIndex + 1}: Food Preference is required`);
         return;
       }
-      if (room.foodLevelId === '') {
+      if (!isIndividual && room.foodLevelId === '') {
         setErrorMsg(`Room ${roomIndex + 1}: Food Level is required`);
         return;
       }
@@ -332,13 +314,17 @@ export default function AddListing() {
         setErrorMsg(`Room ${roomIndex + 1}: Bed Type is required`);
         return;
       }
-      if (room.singleBedCount === '') {
-        setErrorMsg(`Room ${roomIndex + 1}: Single Bed Count is required`);
-        return;
+      if (room.bedType === 'Single' || room.bedType === 'Mixed') {
+        if (room.singleBedCount === '') {
+          setErrorMsg(`Room ${roomIndex + 1}: Single Bed Count is required`);
+          return;
+        }
       }
-      if (room.doubleBedCount === '') {
-        setErrorMsg(`Room ${roomIndex + 1}: Double Bed Count is required`);
-        return;
+      if (room.bedType === 'Double' || room.bedType === 'Mixed') {
+        if (room.doubleBedCount === '') {
+          setErrorMsg(`Room ${roomIndex + 1}: Double Bed Count is required`);
+          return;
+        }
       }
       if (room.securityDeposit === '') {
         setErrorMsg(`Room ${roomIndex + 1}: Security Deposit is required`);
@@ -346,10 +332,6 @@ export default function AddListing() {
       }
       if (!room.availableFrom.trim()) {
         setErrorMsg(`Room ${roomIndex + 1}: Available From is required`);
-        return;
-      }
-      if (!parseDDMMYYYYToISO(room.availableFrom)) {
-        setErrorMsg(`Room ${roomIndex + 1}: Available From must be in DDMMYYYY format`);
         return;
       }
       if (!room.description.trim()) {
@@ -382,18 +364,24 @@ export default function AddListing() {
         const roomPayload: RoomPayload = {
           floorLevelId: Number(room.floorLevelId),
           maxOccupants: Number(room.maxOccupants),
-          foodPreferenceId: Number(room.foodPreferenceId),
+          foodPreferenceId: room.propertyTypeId === 2 ? 3 : Number(room.foodPreferenceId),
           allowSmoking: room.allowSmoking,
           monthlyRent: Number(room.monthlyRent),
           furnishingTypeId: Number(room.furnishingTypeId),
-          availableFrom: parseDDMMYYYYToISO(room.availableFrom) || '',
+          availableFrom: room.availableFrom.slice(0, 10),
           description: room.description,
           securityDeposit: Number(room.securityDeposit),
           propertyTypeId: Number(room.propertyTypeId),
-          foodLevelId: Number(room.foodLevelId),
+          foodLevelId: room.propertyTypeId === 2 ? 1 : Number(room.foodLevelId),
           bedType: room.bedType,
-          singleBedCount: Number(room.singleBedCount),
-          doubleBedCount: Number(room.doubleBedCount),
+          singleBedCount:
+            room.bedType === 'Single' || room.bedType === 'Mixed'
+              ? Number(room.singleBedCount)
+              : 0,
+          doubleBedCount:
+            room.bedType === 'Double' || room.bedType === 'Mixed'
+              ? Number(room.doubleBedCount)
+              : 0,
         };
         return roomPayload as RoomPayload;
       });
@@ -624,18 +612,17 @@ export default function AddListing() {
 
                   <div className="form-group">
                     <label>Max Occupants</label>
-                    <input 
-                      type="text"
+                    <select 
                       className="input-style"
                       value={room.maxOccupants}
-                      onChange={(e) =>
-                        updateRoom(
-                          room.id,
-                          'maxOccupants',
-                          toBoundedOptionalNumber(e.target.value, 1, 4)
-                        )
-                      }
-                    />
+                      onChange={(e) => updateRoom(room.id, 'maxOccupants', e.target.value ? parseInt(e.target.value, 10) : '')}
+                    >
+                      <option value="" disabled>Select max occupants</option>
+                      <option value={1}>1</option>
+                      <option value={2}>2</option>
+                      <option value={3}>3</option>
+                      <option value={4}>4</option>
+                    </select>
                   </div>
 
                   <div className="form-group">
@@ -664,40 +651,64 @@ export default function AddListing() {
                     </select>
                   </div>
 
-                  <div className="form-group">
-                    <label>Food Preference</label>
-                    <select 
-                      className="input-style"
-                      value={room.foodPreferenceId}
-                      onChange={(e) => updateRoom(room.id, 'foodPreferenceId', e.target.value ? parseInt(e.target.value, 10) : '')}
-                    >
-                      <option value="" disabled>Select food preference</option>
-                      <option value={1}>Veg Only</option>
-                      <option value={2}>Non-Veg Allowed</option>
-                      <option value={3}>No Restriction</option>
-                    </select>
-                  </div>
+                  {room.propertyTypeId !== 2 && (
+                    <div className="form-group">
+                      <label>Food Preference</label>
+                      <select 
+                        className="input-style"
+                        value={room.foodPreferenceId}
+                        onChange={(e) => updateRoom(room.id, 'foodPreferenceId', e.target.value ? parseInt(e.target.value, 10) : '')}
+                      >
+                        <option value="" disabled>Select food preference</option>
+                        <option value={1}>Veg Only</option>
+                        <option value={2}>Non-Veg Allowed</option>
+                        <option value={3}>No Restriction</option>
+                      </select>
+                    </div>
+                  )}
 
-                  <div className="form-group">
-                    <label>Food Level</label>
-                    <select
-                      className="input-style"
-                      value={room.foodLevelId}
-                      onChange={(e) => updateRoom(room.id, 'foodLevelId', e.target.value ? parseInt(e.target.value, 10) : '')}
-                    >
-                      <option value="" disabled>Select food level</option>
-                      <option value={1}>Basic</option>
-                      <option value={2}>Standard</option>
-                      <option value={3}>Premium</option>
-                    </select>
-                  </div>
+                  {room.propertyTypeId !== 2 && (
+                    <div className="form-group">
+                      <label>Food Level</label>
+                      <select
+                        className="input-style"
+                        value={room.foodLevelId}
+                        onChange={(e) => updateRoom(room.id, 'foodLevelId', e.target.value ? parseInt(e.target.value, 10) : '')}
+                      >
+                        <option value="" disabled>Select food level</option>
+                        <option value={1}>Basic</option>
+                        <option value={2}>Standard</option>
+                        <option value={3}>Premium</option>
+                      </select>
+                    </div>
+                  )}
 
                   <div className="form-group">
                     <label>Bed Type</label>
                     <select
                       className="input-style"
                       value={room.bedType}
-                      onChange={(e) => updateRoom(room.id, 'bedType', e.target.value as 'Single' | 'Double' | 'Mixed' | '')}
+                      onChange={(e) => {
+                        const nextType = e.target.value as 'Single' | 'Double' | 'Mixed' | '';
+                        setRooms((prev) =>
+                          prev.map((item) =>
+                            item.id === room.id
+                              ? {
+                                  ...item,
+                                  bedType: nextType,
+                                  singleBedCount:
+                                    nextType === 'Single' || nextType === 'Mixed'
+                                      ? item.singleBedCount
+                                      : '',
+                                  doubleBedCount:
+                                    nextType === 'Double' || nextType === 'Mixed'
+                                      ? item.doubleBedCount
+                                      : '',
+                                }
+                              : item
+                          )
+                        );
+                      }}
                     >
                       <option value="" disabled>Select bed type</option>
                       <option value="Single">Single Bed</option>
@@ -706,48 +717,49 @@ export default function AddListing() {
                     </select>
                   </div>
 
-                  <div className="form-group">
-                    <label>Single Bed Count</label>
-                    <input
-                      type="text"
-                      className="input-style"
-                      value={room.singleBedCount}
-                      onChange={(e) =>
-                        updateRoom(
-                          room.id,
-                          'singleBedCount',
-                          toBoundedOptionalNumber(e.target.value, 0, 10)
-                        )
-                      }
-                    />
-                  </div>
+                  {(room.bedType === 'Single' || room.bedType === 'Mixed') && (
+                    <div className="form-group">
+                      <label>Single Bed Count</label>
+                      <input
+                        type="text"
+                        className="input-style"
+                        value={room.singleBedCount}
+                        onChange={(e) =>
+                          updateRoom(
+                            room.id,
+                            'singleBedCount',
+                            toBoundedOptionalNumber(e.target.value, 0, 10)
+                          )
+                        }
+                      />
+                    </div>
+                  )}
+
+                  {(room.bedType === 'Double' || room.bedType === 'Mixed') && (
+                    <div className="form-group">
+                      <label>Double Bed Count</label>
+                      <input
+                        type="text"
+                        className="input-style"
+                        value={room.doubleBedCount}
+                        onChange={(e) =>
+                          updateRoom(
+                            room.id,
+                            'doubleBedCount',
+                            toBoundedOptionalNumber(e.target.value, 0, 10)
+                          )
+                        }
+                      />
+                    </div>
+                  )}
 
                   <div className="form-group">
-                    <label>Double Bed Count</label>
-                    <input
-                      type="text"
-                      className="input-style"
-                      value={room.doubleBedCount}
-                      onChange={(e) =>
-                        updateRoom(
-                          room.id,
-                          'doubleBedCount',
-                          toBoundedOptionalNumber(e.target.value, 0, 10)
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Available From (DDMMYYYY)</label>
+                    <label>Available From (Date & Time)</label>
                     <input 
-                      type="text"
+                      type="datetime-local"
                       className="input-style"
                       value={room.availableFrom}
-                      onChange={(e) =>
-                        updateRoom(room.id, 'availableFrom', e.target.value.replace(/\D/g, '').slice(0, 8))
-                      }
-                      placeholder="e.g. 31012026"
+                      onChange={(e) => updateRoom(room.id, 'availableFrom', e.target.value)}
                     />
                   </div>
 
