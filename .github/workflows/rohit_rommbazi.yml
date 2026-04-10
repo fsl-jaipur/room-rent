@@ -55,6 +55,11 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_A3628CA59E914689B36FE869E0BAF5E2 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_CA3EBCCED78A40B3BB27DE8FEA78034C }}
 
+      - name: Disable Oryx build (use uploaded node_modules as-is)
+        run: |
+          RG=$(az webapp show --name rommbazi --query resourceGroup --output tsv)
+          az webapp config appsettings set --name rommbazi --resource-group "$RG" --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false
+
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
