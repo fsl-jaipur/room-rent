@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "node src/index.js",
+    "start": "tsx src/index.ts",
     "build": "tsc"
   },
   "devDependencies": {
@@ -19,7 +19,6 @@
     "@types/multer": "^1.4.12",
     "nodemon": "^3.0.0",
     "ts-node": "^10.9.2",
-    "tsx": "^4.21.0",
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
@@ -27,6 +26,7 @@
   },
   "dependencies": {
     "@azure/storage-blob": "^12.28.0",
+    "tsx": "^4.21.0",
     "@types/swagger-ui-express": "^4.1.8",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
