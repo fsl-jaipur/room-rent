@@ -26,7 +26,7 @@ jobs:
       - name: npm install, build, and test
         working-directory: backend
         run: |
-          npm install --omit=dev
+          npm install
           npm run test --if-present
 
       - name: Upload artifact for deployment job
@@ -62,5 +62,5 @@ jobs:
           app-name: 'rommbazi'
           slot-name: 'Production'
           package: .
-          startup-command: 'node_modules/.bin/tsx src/index.ts'
+          startup-command: 'npm start'
           
