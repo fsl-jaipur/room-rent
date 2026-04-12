@@ -11,3 +11,7 @@ Thumbs.db
 *.log
 
 node_modules
+.planning
+.continue
+*.zip
+*.md

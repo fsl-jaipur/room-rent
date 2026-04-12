@@ -3,6 +3,30 @@ import { getPool } from "../config/db";
 import type { ParsedAddress } from "./googleMaps.service";
 import { BlobService, generateReadSasUrl } from "./blob.service.js";
 
+// ─── Schema cache ───────────────────────────────────────────
+// Queries sys.columns / INFORMATION_SCHEMA only ONCE per table, then caches
+// the result for the process lifetime. Eliminates 6-8 redundant DB queries
+// per request that were burning Azure SQL free-tier compute.
+const schemaCache = new Map<string, Set<string>>();
+
+async function getCachedColumns(tableName: string): Promise<Set<string>> {
+  const key = tableName.toLowerCase();
+  const cached = schemaCache.get(key);
+  if (cached) return cached;
+
+  const pool = await getPool();
+  const result = await pool.request().query(`
+    SELECT name AS ColumnName
+    FROM sys.columns
+    WHERE object_id = OBJECT_ID('dbo.${tableName}')
+  `);
+  const columns = new Set(
+    result.recordset.map((c: { ColumnName: string }) => c.ColumnName)
+  );
+  schemaCache.set(key, columns);
+  return columns;
+}
+
 export interface CreateListingDto {
   landlordId: string;
   roomDetails: {
@@ -276,14 +300,7 @@ export class ListingsService {
     await transaction.begin();
 
     try {
-      const listingColumnsResult = await new sql.Request(transaction).query(`
-        SELECT name AS ColumnName
-        FROM sys.columns
-        WHERE object_id = OBJECT_ID('dbo.Listings')
-      `);
-      const listingColumns = new Set(
-        listingColumnsResult.recordset.map((c: { ColumnName: string }) => c.ColumnName)
-      );
+      const listingColumns = await getCachedColumns('Listings');
 
       const req = new sql.Request(transaction);
       const insertColumns: string[] = [
@@ -396,14 +413,7 @@ export class ListingsService {
       const listingId = result.recordset[0].ListingId as string;
 
       if (Array.isArray(data.photos) && data.photos.length > 0) {
-        const photoColumnsResult = await new sql.Request(transaction).query(`
-          SELECT name AS ColumnName
-          FROM sys.columns
-          WHERE object_id = OBJECT_ID('dbo.ListingPhotos')
-        `);
-        const photoColumns = new Set(
-          photoColumnsResult.recordset.map((c: { ColumnName: string }) => c.ColumnName)
-        );
+        const photoColumns = await getCachedColumns('ListingPhotos');
 
         const blobIdColumn =
           ["BlobId", "BlobName", "StorageObjectId", "PhotoBlobId", "ExternalId"].find((name) =>
@@ -481,14 +491,7 @@ export class ListingsService {
     await transaction.begin();
 
     try {
-      const listingColumnsResult = await new sql.Request(transaction).query(`
-        SELECT name AS ColumnName
-        FROM sys.columns
-        WHERE object_id = OBJECT_ID('dbo.Listings')
-      `);
-      const listingColumns = new Set(
-        listingColumnsResult.recordset.map((c: { ColumnName: string }) => c.ColumnName)
-      );
+      const listingColumns = await getCachedColumns('Listings');
 
       const listingIds: string[] = [];
 
@@ -593,24 +596,10 @@ export class ListingsService {
     const pool = await getPool();
     const offset = (page - 1) * limit;
 
-    const listingsColumnsResult = await pool.request().query(`
-      SELECT name AS ColumnName
-      FROM sys.columns
-      WHERE object_id = OBJECT_ID('dbo.Listings')
-    `);
-    const listingsColumns = new Set(
-      listingsColumnsResult.recordset.map((c: { ColumnName: string }) => c.ColumnName)
-    );
+    const listingsColumns = await getCachedColumns('Listings');
     const hasPropertyTypeId = listingsColumns.has("PropertyTypeId");
 
-    const usersColumnsResult = await pool.request().query(`
-      SELECT name AS ColumnName
-      FROM sys.columns
-      WHERE object_id = OBJECT_ID('dbo.Users')
-    `);
-    const usersColumns = new Set(
-      usersColumnsResult.recordset.map((c: { ColumnName: string }) => c.ColumnName)
-    );
+    const usersColumns = await getCachedColumns('Users');
     const hasUserGender = usersColumns.has("Gender");
 
     const whereClauses: string[] = ["l.StatusId = 1"];
@@ -869,14 +858,7 @@ export class ListingsService {
   static async getListingById(listingId: string): Promise<ListingDetailsItem | null> {
     const pool = await getPool();
 
-    const listingColumnsResult = await pool.request().query(`
-      SELECT name AS ColumnName
-      FROM sys.columns
-      WHERE object_id = OBJECT_ID('dbo.Listings')
-    `);
-    const listingColumns = new Set(
-      listingColumnsResult.recordset.map((c: { ColumnName: string }) => c.ColumnName)
-    );
+    const listingColumns = await getCachedColumns('Listings');
 
     const detailsReq = pool.request();
     detailsReq.input("ListingId", sql.UniqueIdentifier, listingId);

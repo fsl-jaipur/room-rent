@@ -1,5 +1,7 @@
 import sql from "mssql";
 
+const AUTO_DISCONNECT_MS = 2 * 60 * 1000; // 2 minutes of inactivity → close pool
+
 const dbConfig: sql.config = {
   server: process.env.DB_SERVER || "",
   database: process.env.DB_NAME || "",
@@ -12,23 +14,52 @@ const dbConfig: sql.config = {
     connectTimeout: 30000, // Increase timeout to 30s
   },
   pool: {
-    max: 10,
+    max: 3, // Reduced from 10 — free tier doesn't need many connections
     min: 0,
-    idleTimeoutMillis: 30000,
+    idleTimeoutMillis: 15000, // Close idle connections faster (15s vs 30s)
   },
 };
 
 let pool: sql.ConnectionPool | null = null;
+let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Resets the auto-disconnect timer. Called every time the pool is accessed.
+ * After AUTO_DISCONNECT_MS of no activity, the pool is closed to save
+ * Azure SQL free-tier compute minutes.
+ */
+const resetDisconnectTimer = () => {
+  if (disconnectTimer) {
+    clearTimeout(disconnectTimer);
+  }
+  disconnectTimer = setTimeout(async () => {
+    if (pool) {
+      console.log("💤 Auto-closing SQL pool after inactivity");
+      try {
+        await pool.close();
+      } catch {
+        // Ignore close errors
+      }
+      pool = null;
+    }
+    disconnectTimer = null;
+  }, AUTO_DISCONNECT_MS);
+};
 
 export const getPool = async (): Promise<sql.ConnectionPool> => {
-  if (!pool) {
+  if (!pool || !pool.connected) {
     pool = await sql.connect(dbConfig);
     console.log("✅ Connected to Azure SQL Server");
   }
+  resetDisconnectTimer();
   return pool;
 };
 
 export const closePool = async (): Promise<void> => {
+  if (disconnectTimer) {
+    clearTimeout(disconnectTimer);
+    disconnectTimer = null;
+  }
   if (pool) {
     await pool.close();
     pool = null;
