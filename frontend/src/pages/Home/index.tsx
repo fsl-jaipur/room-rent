@@ -10,8 +10,8 @@ export default function Home() {
     <div style={{ minHeight: '100vh', background: 'var(--bg-color)' }}>
       <section
         style={{
-          background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%)',
-          color: 'white',
+          // background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%)',
+          color: 'var(--text-main)',
           padding: '4rem 1.5rem',
           textAlign: 'center'
         }}
@@ -27,7 +27,7 @@ export default function Home() {
               fontSize: 'clamp(2rem, 5vw, 3.5rem)',
               fontWeight: 700,
               marginBottom: '1rem',
-              color: 'white'
+              color: 'var(--text-main)'
             }}
           >
             Find Your Perfect Rental Home
@@ -36,7 +36,7 @@ export default function Home() {
             style={{
               fontSize: 'clamp(1rem, 2vw, 1.25rem)',
               marginBottom: '2.5rem',
-              color: 'rgba(255, 255, 255, 0.9)',
+              color: 'var(--text-main)',
               margin: '0 auto 2.5rem'
             }}
           >

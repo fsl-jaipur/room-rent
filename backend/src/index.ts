@@ -9,7 +9,7 @@ import swaggerUi from "swagger-ui-express";
 
 import env from "./config/env";
 import swaggerSpec from "./config/swagger";
-import { getPool, closePool } from "./config/db";
+import { connectDB, disconnectDB } from "./config/db";
 import routes from "./routes/index";
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
 
@@ -38,12 +38,6 @@ app.get("/api/docs.json", (_req, res) => {
 });
 app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-app.use((req, res, next) => {
-  (req as any).startTime = Date.now();
-  (global as any).currentRoute = req.method + " " + req.url;
-  next();
-});
-
 // --------------- Routes ---------------
 app.use("/api", routes);
 
@@ -54,8 +48,8 @@ app.use(errorHandler);
 // --------------- Start server ---------------
 const start = async () => {
   try {
-    // Connect to Azure SQL Server
-    await getPool();
+    // Connect to MongoDB Atlas
+    await connectDB();
 
     app.listen(env.PORT, () => {
       console.log(
@@ -71,12 +65,12 @@ const start = async () => {
 // Graceful shutdown
 process.on("SIGINT", async () => {
   console.log("\n🛑 Shutting down gracefully...");
-  await closePool();
+  await disconnectDB();
   process.exit(0);
 });
 
 process.on("SIGTERM", async () => {
-  await closePool();
+  await disconnectDB();
   process.exit(0);
 });
 

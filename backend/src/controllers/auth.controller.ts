@@ -1,29 +1,20 @@
 import type { Request, Response } from "express";
 import crypto from "node:crypto";
-import sql from "mssql";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 import { Resend } from "resend";
-import db, { executeQuery } from "../config/db.js";
+import User from "../models/User.js";
+import PasswordResetRequest from "../models/PasswordResetRequest.js";
 import env from "../config/env.js";
-
-type AuthUserRecord = {
-  UserId: string;
-  Email: string | null;
-  Role: string | null;
-  Gender?: string | null;
-};
 
 type UserRole = "Landlord" | "Tenant";
 const ALLOWED_ROLES: UserRole[] = ["Landlord", "Tenant"];
 type UserGender = "Male" | "Female";
 
-let usersHasGenderColumnCache: boolean | null = null;
 const googleClient = new OAuth2Client();
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 const RESET_OTP_TTL_MINUTES = 10;
-let resetTableEnsured = false;
 
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
@@ -45,48 +36,6 @@ const normalizeGender = (value: unknown): UserGender | null => {
   if (normalized === "male") return "Male";
   if (normalized === "female") return "Female";
   return null;
-};
-
-const usersHasGenderColumn = async (): Promise<boolean> => {
-  if (usersHasGenderColumnCache !== null) return usersHasGenderColumnCache;
-  const result = await executeQuery(`
-    SELECT 1 AS found
-    FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'Users' AND COLUMN_NAME = 'Gender'
-  `);
-  usersHasGenderColumnCache = result.recordset.length > 0;
-  return usersHasGenderColumnCache;
-};
-
-const extractSqlMessage = (error: unknown): string => {
-  if (typeof error !== "object" || error === null) {
-    return "";
-  }
-
-  const maybeMessage = (error as { message?: unknown }).message;
-  return typeof maybeMessage === "string" ? maybeMessage : "";
-};
-
-const ensurePasswordResetTable = async (): Promise<void> => {
-  if (resetTableEnsured) return;
-  await executeQuery(`
-    IF OBJECT_ID('dbo.PasswordResetRequests', 'U') IS NULL
-    BEGIN
-      CREATE TABLE dbo.PasswordResetRequests (
-        ResetId INT IDENTITY(1,1) PRIMARY KEY,
-        UserId UNIQUEIDENTIFIER NOT NULL,
-        Email VARCHAR(255) NOT NULL,
-        OtpHash CHAR(64) NOT NULL,
-        TokenHash CHAR(64) NOT NULL,
-        ExpiresAt DATETIME2 NOT NULL,
-        UsedAt DATETIME2 NULL,
-        CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
-      );
-      CREATE INDEX IX_PasswordResetRequests_Email ON dbo.PasswordResetRequests (Email);
-      CREATE INDEX IX_PasswordResetRequests_UserId ON dbo.PasswordResetRequests (UserId);
-    END
-  `);
-  resetTableEnsured = true;
 };
 
 const buildResetPasswordEmailHtml = (otpCode: string, resetLink: string) => `
@@ -155,12 +104,13 @@ const generateGooglePhonePlaceholder = (): string => {
   return `G${randomDigits}`;
 };
 
-const sendAuthCookie = (res: Response, user: AuthUserRecord) => {
-  const email = user.Email ?? "";
-  const role = user.Role ?? "Tenant";
+const sendAuthCookie = (res: Response, user: { _id: unknown; email?: string | null; role?: string | null }) => {
+  const id = String(user._id);
+  const email = user.email ?? "";
+  const role = user.role ?? "Tenant";
 
   const token = jwt.sign(
-    { id: user.UserId, email, role },
+    { id, email, role },
     env.JWT_SECRET,
     { expiresIn: "7d" }
   );
@@ -173,6 +123,15 @@ const sendAuthCookie = (res: Response, user: AuthUserRecord) => {
   });
 
   return token;
+};
+
+// Helper to check if a MongoDB error is a duplicate key error
+const isDuplicateKeyError = (error: unknown): { field: string } | null => {
+  if (typeof error !== "object" || error === null) return null;
+  const mongoErr = error as { code?: number; keyPattern?: Record<string, unknown> };
+  if (mongoErr.code !== 11000) return null;
+  const keys = Object.keys(mongoErr.keyPattern || {});
+  return { field: keys[0] || "unknown" };
 };
 
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -212,22 +171,13 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
-    const pool = await db.getPool();
+    // Check for existing user
+    const existingUser = await User.findOne({
+      $or: [{ email: normalizedEmail }, { phone: normalizedPhone }],
+    }).lean();
 
-    const userExists = await pool
-      .request()
-      .input("Email", sql.VarChar, normalizedEmail)
-      .input("Phone", sql.VarChar, normalizedPhone)
-      .query(
-        "SELECT UserId, Email, Phone FROM dbo.Users WHERE Email = @Email OR Phone = @Phone"
-      );
-
-    if (userExists.recordset.length > 0) {
-      const duplicateUser = userExists.recordset[0] as {
-        Email: string | null;
-        Phone: string;
-      };
-      if (duplicateUser.Email === normalizedEmail) {
+    if (existingUser) {
+      if (existingUser.email === normalizedEmail) {
         res.status(409).json({ error: "Email already registered" });
       } else {
         res.status(409).json({ error: "Phone already registered" });
@@ -238,71 +188,35 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    const hasGenderColumn = await usersHasGenderColumn();
-    const request = pool
-      .request()
-      .input("FullName", sql.NVarChar, normalizedFullName)
-      .input("Email", sql.VarChar, normalizedEmail)
-      .input("Phone", sql.VarChar, normalizedPhone)
-      .input("PasswordHash", sql.VarChar, passwordHash)
-      .input("Role", sql.VarChar, normalizedRole);
+    const user = await User.create({
+      fullName: normalizedFullName,
+      email: normalizedEmail,
+      phone: normalizedPhone,
+      passwordHash,
+      role: normalizedRole,
+      gender: normalizedGender ?? undefined,
+      isVerified: false,
+    });
 
-    const insertColumns = ["FullName", "Email", "Phone", "PasswordHash", "Role", "IsVerified"];
-    const insertValues = ["@FullName", "@Email", "@Phone", "@PasswordHash", "@Role", "0"];
-    const outputColumns = ["INSERTED.UserId", "INSERTED.Email", "INSERTED.Role"];
-
-    if (hasGenderColumn) {
-      insertColumns.push("Gender");
-      insertValues.push("@Gender");
-      outputColumns.push("INSERTED.Gender");
-      request.input("Gender", sql.VarChar, normalizedGender);
-    }
-
-    const result = await request.query(`
-      INSERT INTO dbo.Users (${insertColumns.join(", ")})
-      OUTPUT ${outputColumns.join(", ")}
-      VALUES (${insertValues.join(", ")})
-    `);
-
-    const user = result.recordset[0] as AuthUserRecord;
     sendAuthCookie(res, user);
 
     res.status(201).json({
       message: "Registration successful",
-      user: { id: user.UserId, email: user.Email, role: user.Role, gender: user.Gender ?? null },
+      user: { id: user._id, email: user.email, role: user.role, gender: user.gender ?? null },
     });
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "number" in error &&
-      (error as { number?: number }).number !== undefined
-    ) {
-      const sqlError = error as { number: number };
-      if (sqlError.number === 2627 || sqlError.number === 2601) {
-        const sqlMessage = extractSqlMessage(error);
-
-        if (sqlMessage.includes("UQ_Users_Email")) {
-          res.status(409).json({ error: "Email already registered" });
-          return;
-        }
-
-        if (sqlMessage.includes("UQ_Users_Phone")) {
-          res.status(409).json({ error: "Phone already registered" });
-          return;
-        }
-
-        if (sqlMessage.includes("UQ_Users_AadhaarHash")) {
-          res.status(500).json({
-            error:
-              "Registration blocked by database constraint UQ_Users_AadhaarHash. Apply the nullable unique-index fix and try again.",
-          });
-          return;
-        }
-
-        res.status(409).json({ error: "Account already exists" });
+    const dup = isDuplicateKeyError(error);
+    if (dup) {
+      if (dup.field === "email") {
+        res.status(409).json({ error: "Email already registered" });
         return;
       }
+      if (dup.field === "phone") {
+        res.status(409).json({ error: "Phone already registered" });
+        return;
+      }
+      res.status(409).json({ error: "Account already exists" });
+      return;
     }
 
     console.error("Registration Error:", error);
@@ -324,35 +238,26 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   const normalizedEmail = normalizeEmail(email);
 
   try {
-    const pool = await db.getPool();
+    const user = await User.findOne({ email: normalizedEmail }).select(
+      "+passwordHash"
+    );
 
-    const result = await pool
-      .request()
-      .input("Email", sql.VarChar, normalizedEmail)
-      .query(`
-        SELECT UserId, Email, PasswordHash, Role, IsActive
-        FROM dbo.Users
-        WHERE Email = @Email
-      `);
-
-    if (result.recordset.length === 0) {
+    if (!user) {
       res.status(401).json({ error: "Invalid credentials" });
       return;
     }
 
-    const user = result.recordset[0];
-
-    if (!user.IsActive) {
+    if (!user.isActive) {
       res.status(403).json({ error: "Account is deactivated" });
       return;
     }
 
-    if (!user.PasswordHash || typeof user.PasswordHash !== "string") {
+    if (!user.passwordHash) {
       res.status(401).json({ error: "Invalid credentials" });
       return;
     }
 
-    const isMatch = await bcrypt.compare(password, user.PasswordHash);
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
       res.status(401).json({ error: "Invalid credentials" });
       return;
@@ -362,7 +267,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     res.status(200).json({
       message: "Login successful",
-      user: { id: user.UserId, email: user.Email, role: user.Role },
+      user: { id: user._id, email: user.email, role: user.role },
     });
   } catch (error) {
     console.error("Login Error:", error);
@@ -382,28 +287,9 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     "If an account exists for this email, password reset instructions were sent.";
 
   try {
-    await ensurePasswordResetTable();
-    const pool = await db.getPool();
-    const result = await pool
-      .request()
-      .input("Email", sql.VarChar, normalizedEmail)
-      .query(`
-        SELECT TOP 1 UserId, Email, IsActive
-        FROM dbo.Users
-        WHERE Email = @Email
-      `);
+    const user = await User.findOne({ email: normalizedEmail, isActive: true }).lean();
 
-    if (result.recordset.length === 0 || !result.recordset[0].IsActive) {
-      if (env.BYPASS_RESET_EMAIL) {
-        res.status(404).json({ error: "No active account found for this email" });
-        return;
-      }
-      res.status(200).json({ message: genericMessage });
-      return;
-    }
-
-    const user = result.recordset[0] as { UserId: string; Email: string | null };
-    if (!user.Email) {
+    if (!user || !user.email) {
       if (env.BYPASS_RESET_EMAIL) {
         res.status(404).json({ error: "No active account found for this email" });
         return;
@@ -418,30 +304,28 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     const tokenHash = sha256Hex(resetToken);
     const resetLink = `${env.CLIENT_URL.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(
       resetToken
-    )}&email=${encodeURIComponent(user.Email)}`;
+    )}&email=${encodeURIComponent(user.email)}`;
 
-    await pool
-      .request()
-      .input("UserId", sql.UniqueIdentifier, user.UserId)
-      .query(`UPDATE dbo.PasswordResetRequests SET UsedAt = SYSUTCDATETIME() WHERE UserId = @UserId AND UsedAt IS NULL`);
+    // Invalidate previous unused requests
+    await PasswordResetRequest.updateMany(
+      { userId: user._id, usedAt: null },
+      { usedAt: new Date() }
+    );
 
-    await pool
-      .request()
-      .input("UserId", sql.UniqueIdentifier, user.UserId)
-      .input("Email", sql.VarChar, user.Email)
-      .input("OtpHash", sql.Char(64), otpHash)
-      .input("TokenHash", sql.Char(64), tokenHash)
-      .input("ExpiryMinutes", sql.Int, RESET_OTP_TTL_MINUTES)
-      .query(`
-        INSERT INTO dbo.PasswordResetRequests (UserId, Email, OtpHash, TokenHash, ExpiresAt)
-        VALUES (@UserId, @Email, @OtpHash, @TokenHash, DATEADD(MINUTE, @ExpiryMinutes, SYSUTCDATETIME()))
-      `);
+    // Create new reset request
+    await PasswordResetRequest.create({
+      userId: user._id,
+      email: user.email,
+      otpHash,
+      tokenHash,
+      expiresAt: new Date(Date.now() + RESET_OTP_TTL_MINUTES * 60 * 1000),
+    });
 
     if (env.BYPASS_RESET_EMAIL) {
       res.status(200).json({
         message: "Email sending is bypassed. Continue to reset password.",
         resetToken,
-        email: user.Email,
+        email: user.email,
         otpCode,
       });
       return;
@@ -457,7 +341,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
     const sendResult = await resend.emails.send({
       from: env.RESEND_FROM_EMAIL,
-      to: user.Email,
+      to: user.email,
       subject: "Reset Your Password",
       html: buildResetPasswordEmailHtml(otpCode, resetLink),
     });
@@ -503,48 +387,27 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
   }
 
   try {
-    await ensurePasswordResetTable();
-    const pool = await db.getPool();
-    const userResult = await pool
-      .request()
-      .input("Email", sql.VarChar, normalizedEmail)
-      .query(`
-        SELECT TOP 1 UserId
-        FROM dbo.Users
-        WHERE Email = @Email AND IsActive = 1
-      `);
-
-    if (userResult.recordset.length === 0) {
+    const user = await User.findOne({ email: normalizedEmail, isActive: true }).lean();
+    if (!user) {
       res.status(400).json({ error: "Invalid or expired reset request" });
       return;
     }
 
-    const requestRecordResult = await pool
-      .request()
-      .input("Email", sql.VarChar, normalizedEmail)
-      .query(`
-        SELECT TOP 1 ResetId, UserId, OtpHash, TokenHash
-        FROM dbo.PasswordResetRequests
-        WHERE Email = @Email
-          AND UsedAt IS NULL
-          AND ExpiresAt > SYSUTCDATETIME()
-        ORDER BY CreatedAt DESC
-      `);
+    const resetRecord = await PasswordResetRequest.findOne({
+      email: normalizedEmail,
+      usedAt: null,
+      expiresAt: { $gt: new Date() },
+    })
+      .sort({ createdAt: -1 })
+      .lean();
 
-    if (requestRecordResult.recordset.length === 0) {
+    if (!resetRecord) {
       res.status(400).json({ error: "Invalid or expired reset request" });
       return;
     }
 
-    const requestRecord = requestRecordResult.recordset[0] as {
-      ResetId: number;
-      UserId: string;
-      OtpHash: string;
-      TokenHash: string;
-    };
-
-    const otpValid = hasOtp ? sha256Hex((otpCode as string).trim()) === requestRecord.OtpHash : false;
-    const tokenValid = hasToken ? sha256Hex((token as string).trim()) === requestRecord.TokenHash : false;
+    const otpValid = hasOtp ? sha256Hex((otpCode as string).trim()) === resetRecord.otpHash : false;
+    const tokenValid = hasToken ? sha256Hex((token as string).trim()) === resetRecord.tokenHash : false;
 
     if (!otpValid && !tokenValid) {
       res.status(400).json({ error: "Invalid or expired reset request" });
@@ -554,20 +417,13 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(trimmedPassword, salt);
 
-    await pool
-      .request()
-      .input("UserId", sql.UniqueIdentifier, requestRecord.UserId)
-      .input("PasswordHash", sql.VarChar, passwordHash)
-      .query(`
-        UPDATE dbo.Users
-        SET PasswordHash = @PasswordHash
-        WHERE UserId = @UserId
-      `);
+    await User.updateOne({ _id: user._id }, { passwordHash });
 
-    await pool
-      .request()
-      .input("UserId", sql.UniqueIdentifier, requestRecord.UserId)
-      .query(`UPDATE dbo.PasswordResetRequests SET UsedAt = SYSUTCDATETIME() WHERE UserId = @UserId AND UsedAt IS NULL`);
+    // Invalidate all pending reset requests for this user
+    await PasswordResetRequest.updateMany(
+      { userId: user._id, usedAt: null },
+      { usedAt: new Date() }
+    );
 
     res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
@@ -609,24 +465,11 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const pool = await db.getPool();
-    const hasGenderColumn = await usersHasGenderColumn();
+    // Check if user exists
+    const existingUser = await User.findOne({ email });
 
-    const existingUserResult = await pool
-      .request()
-      .input("Email", sql.VarChar, email)
-      .query(`
-        SELECT UserId, Email, Role, IsActive${hasGenderColumn ? ", Gender" : ""}
-        FROM dbo.Users
-        WHERE Email = @Email
-      `);
-
-    if (existingUserResult.recordset.length > 0) {
-      const existingUser = existingUserResult.recordset[0] as AuthUserRecord & {
-        IsActive: boolean;
-      };
-
-      if (!existingUser.IsActive) {
+    if (existingUser) {
+      if (!existingUser.isActive) {
         res.status(403).json({ error: "Account is deactivated" });
         return;
       }
@@ -635,48 +478,33 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
       res.status(200).json({
         message: "Google login successful",
         user: {
-          id: existingUser.UserId,
-          email: existingUser.Email,
-          role: existingUser.Role,
-          gender: existingUser.Gender ?? null,
+          id: existingUser._id,
+          email: existingUser.email,
+          role: existingUser.role,
+          gender: existingUser.gender ?? null,
         },
       });
       return;
     }
 
-    const request = pool
-      .request()
-      .input("FullName", sql.NVarChar, fullName)
-      .input("Email", sql.VarChar, email)
-      .input("Phone", sql.VarChar, generateGooglePhonePlaceholder())
-      .input("Role", sql.VarChar, "Tenant");
+    // Create new user
+    const createdUser = await User.create({
+      fullName,
+      email,
+      phone: generateGooglePhonePlaceholder(),
+      role: "Tenant",
+      isVerified: true,
+    });
 
-    const insertColumns = ["FullName", "Email", "Phone", "Role", "IsVerified"];
-    const insertValues = ["@FullName", "@Email", "@Phone", "@Role", "1"];
-    const outputColumns = ["INSERTED.UserId", "INSERTED.Email", "INSERTED.Role"];
-
-    if (hasGenderColumn) {
-      insertColumns.push("Gender");
-      insertValues.push("NULL");
-      outputColumns.push("INSERTED.Gender");
-    }
-
-    const createdResult = await request.query(`
-      INSERT INTO dbo.Users (${insertColumns.join(", ")})
-      OUTPUT ${outputColumns.join(", ")}
-      VALUES (${insertValues.join(", ")})
-    `);
-
-    const createdUser = createdResult.recordset[0] as AuthUserRecord;
     sendAuthCookie(res, createdUser);
 
     res.status(201).json({
       message: "Google signup successful",
       user: {
-        id: createdUser.UserId,
-        email: createdUser.Email,
-        role: createdUser.Role,
-        gender: createdUser.Gender ?? null,
+        id: createdUser._id,
+        email: createdUser.email,
+        role: createdUser.role,
+        gender: createdUser.gender ?? null,
       },
     });
   } catch (error) {
@@ -692,29 +520,15 @@ export const me = async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
-    const pool = await db.getPool();
-    const hasGenderColumn = await usersHasGenderColumn();
-    const selectColumns = ["UserId", "Email", "Role", "IsActive"];
-    if (hasGenderColumn) {
-      selectColumns.push("Gender");
-    }
-    const result = await pool
-      .request()
-      .input("UserId", sql.UniqueIdentifier, req.user.id)
-      .query(`
-        SELECT ${selectColumns.join(", ")}
-        FROM dbo.Users
-        WHERE UserId = @UserId
-      `);
+    const user = await User.findById(req.user.id).lean();
 
-    if (result.recordset.length === 0 || !result.recordset[0].IsActive) {
+    if (!user || !user.isActive) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
 
-    const user = result.recordset[0] as AuthUserRecord;
     res.status(200).json({
-      user: { id: user.UserId, email: user.Email, role: user.Role, gender: user.Gender ?? null },
+      user: { id: user._id, email: user.email ?? null, role: user.role ?? null, gender: user.gender ?? null },
     });
   } catch (error) {
     console.error("Auth me Error:", error);
