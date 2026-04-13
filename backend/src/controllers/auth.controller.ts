@@ -117,7 +117,7 @@ const sendAuthCookie = (
 
   res.cookie("jwt", token, {
     httpOnly: true,
-    secure: env.NODE_ENV === "production",
+    secure: true,
     sameSite: env.NODE_ENV === "production" ? "strict" : "none",
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
