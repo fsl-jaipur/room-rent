@@ -20,7 +20,8 @@ const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
 
 const normalizeEmail = (value: string): string => value.trim().toLowerCase();
-const sha256Hex = (value: string) => crypto.createHash("sha256").update(value).digest("hex");
+const sha256Hex = (value: string) =>
+  crypto.createHash("sha256").update(value).digest("hex");
 
 const escapeHtml = (value: string): string =>
   value
@@ -104,16 +105,15 @@ const generateGooglePhonePlaceholder = (): string => {
   return `G${randomDigits}`;
 };
 
-const sendAuthCookie = (res: Response, user: { _id: unknown; email?: string | null; }) => {
+const sendAuthCookie = (
+  res: Response,
+  user: { _id: unknown; email?: string | null },
+) => {
   const id = String(user._id);
   const email = user.email ?? "";
   // const role = user.role ?? "Tenant";
 
-  const token = jwt.sign(
-    { id, email },
-    env.JWT_SECRET,
-    { expiresIn: "7d" }
-  );
+  const token = jwt.sign({ id, email }, env.JWT_SECRET, { expiresIn: "7d" });
 
   res.cookie("jwt", token, {
     httpOnly: true,
@@ -128,7 +128,10 @@ const sendAuthCookie = (res: Response, user: { _id: unknown; email?: string | nu
 // Helper to check if a MongoDB error is a duplicate key error
 const isDuplicateKeyError = (error: unknown): { field: string } | null => {
   if (typeof error !== "object" || error === null) return null;
-  const mongoErr = error as { code?: number; keyPattern?: Record<string, unknown> };
+  const mongoErr = error as {
+    code?: number;
+    keyPattern?: Record<string, unknown>;
+  };
   if (mongoErr.code !== 11000) return null;
   const keys = Object.keys(mongoErr.keyPattern || {});
   return { field: keys[0] || "unknown" };
@@ -245,11 +248,12 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
   try {
     const user = await User.findOne({ email: normalizedEmail }).select(
-      "+passwordHash"
+      "+passwordHash",
     );
+    console.log("user", user);
 
     if (!user) {
-      res.status(401).json({ error: "Invalid credentials" });
+      res.status(401).json({ error: "Invalid credentials1" });
       return;
     }
 
@@ -259,13 +263,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     if (!user.passwordHash) {
-      res.status(401).json({ error: "Invalid credentials" });
+      res.status(401).json({ error: "Invalid credentials2" });
       return;
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      res.status(401).json({ error: "Invalid credentials" });
+      res.status(401).json({ error: "Invalid credentials3" });
       return;
     }
 
@@ -286,7 +290,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+export const forgotPassword = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   const { email } = req.body as { email?: unknown };
   if (!isNonEmptyString(email)) {
     res.status(400).json({ error: "Email is required" });
@@ -298,11 +305,16 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     "If an account exists for this email, password reset instructions were sent.";
 
   try {
-    const user = await User.findOne({ email: normalizedEmail, isActive: true }).lean();
+    const user = await User.findOne({
+      email: normalizedEmail,
+      isActive: true,
+    }).lean();
 
     if (!user || !user.email) {
       if (env.BYPASS_RESET_EMAIL) {
-        res.status(404).json({ error: "No active account found for this email" });
+        res
+          .status(404)
+          .json({ error: "No active account found for this email" });
         return;
       }
       res.status(200).json({ message: genericMessage });
@@ -314,13 +326,13 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     const otpHash = sha256Hex(otpCode);
     const tokenHash = sha256Hex(resetToken);
     const resetLink = `${env.CLIENT_URL.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(
-      resetToken
+      resetToken,
     )}&email=${encodeURIComponent(user.email)}`;
 
     // Invalidate previous unused requests
     await PasswordResetRequest.updateMany(
       { userId: user._id, usedAt: null },
-      { usedAt: new Date() }
+      { usedAt: new Date() },
     );
 
     // Create new reset request
@@ -344,7 +356,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
     if (!resend || !env.RESEND_FROM_EMAIL) {
       console.error(
-        "Forgot password email is not configured: missing RESEND_API_KEY or RESEND_FROM_EMAIL."
+        "Forgot password email is not configured: missing RESEND_API_KEY or RESEND_FROM_EMAIL.",
       );
       res.status(500).json({ error: "Email service is not configured" });
       return;
@@ -366,11 +378,16 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     res.status(200).json({ message: genericMessage });
   } catch (error) {
     console.error("Forgot password Error:", error);
-    res.status(500).json({ error: "Unable to process forgot password request" });
+    res
+      .status(500)
+      .json({ error: "Unable to process forgot password request" });
   }
 };
 
-export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+export const resetPassword = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   const { email, otpCode, token, newPassword } = req.body as {
     email?: unknown;
     otpCode?: unknown;
@@ -386,7 +403,9 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
   const normalizedEmail = normalizeEmail(email);
   const trimmedPassword = newPassword.trim();
   if (trimmedPassword.length < 6) {
-    res.status(400).json({ error: "New password must be at least 6 characters" });
+    res
+      .status(400)
+      .json({ error: "New password must be at least 6 characters" });
     return;
   }
 
@@ -398,7 +417,10 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
   }
 
   try {
-    const user = await User.findOne({ email: normalizedEmail, isActive: true }).lean();
+    const user = await User.findOne({
+      email: normalizedEmail,
+      isActive: true,
+    }).lean();
     if (!user) {
       res.status(400).json({ error: "Invalid or expired reset request" });
       return;
@@ -417,8 +439,12 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const otpValid = hasOtp ? sha256Hex((otpCode as string).trim()) === resetRecord.otpHash : false;
-    const tokenValid = hasToken ? sha256Hex((token as string).trim()) === resetRecord.tokenHash : false;
+    const otpValid = hasOtp
+      ? sha256Hex((otpCode as string).trim()) === resetRecord.otpHash
+      : false;
+    const tokenValid = hasToken
+      ? sha256Hex((token as string).trim()) === resetRecord.tokenHash
+      : false;
 
     if (!otpValid && !tokenValid) {
       res.status(400).json({ error: "Invalid or expired reset request" });
@@ -433,7 +459,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     // Invalidate all pending reset requests for this user
     await PasswordResetRequest.updateMany(
       { userId: user._id, usedAt: null },
-      { usedAt: new Date() }
+      { usedAt: new Date() },
     );
 
     res.status(200).json({ message: "Password reset successful" });
@@ -443,7 +469,10 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-export const googleLogin = async (req: Request, res: Response): Promise<void> => {
+export const googleLogin = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   const { idToken } = req.body as { idToken?: unknown };
 
   if (!isNonEmptyString(idToken)) {
@@ -493,8 +522,11 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
           email: existingUser.email,
           // role: existingUser.role,
           gender: existingUser.gender ?? null,
-          hasPhoto: !!(existingUser.photoUrl && existingUser.photoUrl.trim() !== ""),
-          hasAadhaar: !!existingUser.aadhaarHash || !!existingUser.aadhaarEncrypted,
+          hasPhoto: !!(
+            existingUser.photoUrl && existingUser.photoUrl.trim() !== ""
+          ),
+          hasAadhaar:
+            !!existingUser.aadhaarHash || !!existingUser.aadhaarEncrypted,
         },
       });
       return;
