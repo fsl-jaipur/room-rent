@@ -118,7 +118,7 @@ const sendAuthCookie = (
   res.cookie("jwt", token, {
     httpOnly: true,
     secure: env.NODE_ENV === "production",
-    sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+    sameSite: env.NODE_ENV === "production" ? "strict" : "none",
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
@@ -258,13 +258,12 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // if (!user.passwordHash) {
-    //   res.status(401).json({ error: "Invalid credentials2" });
-    //   return;
-    // }
+    if (!user.passwordHash) {
+      res.status(401).json({ error: "Invalid credentials2" });
+      return;
+    }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
-    console.log("isMatch", isMatch);
     if (!isMatch) {
       res.status(401).json({ error: "Invalid credentials3" });
       return;
