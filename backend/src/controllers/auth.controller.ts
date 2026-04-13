@@ -247,9 +247,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   const normalizedEmail = normalizeEmail(email);
 
   try {
-    const user = await User.findOne({ email: normalizedEmail }).select(
-      "+passwordHash",
-    );
+    const user = await User.findOne({ email: normalizedEmail });
     console.log("user", user);
 
     if (!user) {
@@ -262,12 +260,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    if (!user.passwordHash) {
-      res.status(401).json({ error: "Invalid credentials2" });
-      return;
-    }
+    // if (!user.passwordHash) {
+    //   res.status(401).json({ error: "Invalid credentials2" });
+    //   return;
+    // }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
+    console.log("isMatch", isMatch);
     if (!isMatch) {
       res.status(401).json({ error: "Invalid credentials3" });
       return;
