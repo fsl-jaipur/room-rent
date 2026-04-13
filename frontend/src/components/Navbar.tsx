@@ -12,6 +12,9 @@ export default function Navbar() {
 
   const isActive = (path: string) => location.pathname === path;
 
+  const profileCompletionPct =
+    user ? 50 + (user.hasPhoto ? 25 : 0) + (user.hasAadhaar ? 25 : 0) : 0;
+
   useEffect(() => {
     if (location.pathname !== '/listings') return;
     setSearchValue(searchParams.get('search') || '');
@@ -84,9 +87,12 @@ export default function Navbar() {
               <Link to="/add-listing" className="btn btn-primary btn-sm">
                 + Post Property
               </Link>
-              <Link to="/profile" className={`nav-link ${isActive('/profile') ? 'active' : ''}`}>
+              <Link to="/profile" className={`nav-link profile-link-wrapper ${isActive('/profile') ? 'active' : ''}`}>
                 <User size={18} />
                 Profile
+                {profileCompletionPct < 100 && (
+                  <span className="profile-nudge-badge" title="Complete your profile!">{profileCompletionPct}%</span>
+                )}
               </Link>
               <button className="btn btn-outline btn-sm" onClick={logout}>
                 <LogOut size={16} />

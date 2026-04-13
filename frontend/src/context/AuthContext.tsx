@@ -6,6 +6,8 @@ interface User {
   id: string;
   email: string;
   role: string;
+  hasPhoto?: boolean;
+  hasAadhaar?: boolean;
 }
 
 interface AuthContextType {
@@ -22,20 +24,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refreshSession = async () => {
+  const refreshSession = async (force = false) => {
+    const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
+    if (!isLoggedIn && !force) {
+      setLoading(false);
+      return;
+    }
+
     try {
       const data = await apiFetch<{ user: User }>("/api/auth/me", {
         method: "GET",
       });
       setUser(data.user);
+      localStorage.setItem("isLoggedIn", "true");
     } catch {
       setUser(null);
+      localStorage.removeItem("isLoggedIn");
     }
   };
 
   useEffect(() => {
     refreshSession().finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem("isLoggedIn", "true");
+    }
+  }, [user]);
 
   const logout = async () => {
     try {
@@ -46,6 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Logout failed", e);
     } finally {
       setUser(null);
+      localStorage.removeItem("isLoggedIn");
     }
   };
 

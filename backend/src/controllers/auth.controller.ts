@@ -8,8 +8,8 @@ import User from "../models/User.js";
 import PasswordResetRequest from "../models/PasswordResetRequest.js";
 import env from "../config/env.js";
 
-type UserRole = "Landlord" | "Tenant";
-const ALLOWED_ROLES: UserRole[] = ["Landlord", "Tenant"];
+// type UserRole = "Landlord" | "Tenant";
+// const ALLOWED_ROLES: UserRole[] = ["Landlord", "Tenant"];
 type UserGender = "Male" | "Female";
 
 const googleClient = new OAuth2Client();
@@ -104,13 +104,13 @@ const generateGooglePhonePlaceholder = (): string => {
   return `G${randomDigits}`;
 };
 
-const sendAuthCookie = (res: Response, user: { _id: unknown; email?: string | null; role?: string | null }) => {
+const sendAuthCookie = (res: Response, user: { _id: unknown; email?: string | null; }) => {
   const id = String(user._id);
   const email = user.email ?? "";
-  const role = user.role ?? "Tenant";
+  // const role = user.role ?? "Tenant";
 
   const token = jwt.sign(
-    { id, email, role },
+    { id, email },
     env.JWT_SECRET,
     { expiresIn: "7d" }
   );
@@ -135,12 +135,12 @@ const isDuplicateKeyError = (error: unknown): { field: string } | null => {
 };
 
 export const register = async (req: Request, res: Response): Promise<void> => {
-  const { fullName, email, phone, password, role, gender } = req.body as {
+  const { fullName, email, phone, password, gender } = req.body as {
     fullName?: unknown;
     email?: unknown;
     phone?: unknown;
     password?: unknown;
-    role?: unknown;
+    // role?: unknown;
     gender?: unknown;
   };
 
@@ -159,10 +159,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   const normalizedEmail = normalizeEmail(email);
   const normalizedPhone = phone.trim();
   const normalizedFullName = fullName.trim();
-  const normalizedRole: UserRole =
-    typeof role === "string" && ALLOWED_ROLES.includes(role as UserRole)
-      ? (role as UserRole)
-      : "Tenant";
+  // const normalizedRole: UserRole =
+  //   typeof role === "string" && ALLOWED_ROLES.includes(role as UserRole)
+  //     ? (role as UserRole)
+  //     : "Tenant";
   const normalizedGender = normalizeGender(gender);
 
   if (gender !== undefined && normalizedGender === null) {
@@ -193,7 +193,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       email: normalizedEmail,
       phone: normalizedPhone,
       passwordHash,
-      role: normalizedRole,
+      // role: normalizedRole,
       gender: normalizedGender ?? undefined,
       isVerified: false,
     });
@@ -202,7 +202,13 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     res.status(201).json({
       message: "Registration successful",
-      user: { id: user._id, email: user.email, role: user.role, gender: user.gender ?? null },
+      user: {
+        id: user._id,
+        email: user.email,
+        gender: user.gender ?? null,
+        hasPhoto: false,
+        hasAadhaar: false,
+      },
     });
   } catch (error) {
     const dup = isDuplicateKeyError(error);
@@ -267,7 +273,12 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     res.status(200).json({
       message: "Login successful",
-      user: { id: user._id, email: user.email, role: user.role },
+      user: {
+        id: user._id,
+        email: user.email,
+        hasPhoto: !!(user.photoUrl && user.photoUrl.trim() !== ""),
+        hasAadhaar: !!user.aadhaarHash || !!user.aadhaarEncrypted,
+      },
     });
   } catch (error) {
     console.error("Login Error:", error);
@@ -480,8 +491,10 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
         user: {
           id: existingUser._id,
           email: existingUser.email,
-          role: existingUser.role,
+          // role: existingUser.role,
           gender: existingUser.gender ?? null,
+          hasPhoto: !!(existingUser.photoUrl && existingUser.photoUrl.trim() !== ""),
+          hasAadhaar: !!existingUser.aadhaarHash || !!existingUser.aadhaarEncrypted,
         },
       });
       return;
@@ -492,7 +505,7 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
       fullName,
       email,
       phone: generateGooglePhonePlaceholder(),
-      role: "Tenant",
+      // role: "Tenant",
       isVerified: true,
     });
 
@@ -503,8 +516,10 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
       user: {
         id: createdUser._id,
         email: createdUser.email,
-        role: createdUser.role,
+        // role: createdUser.role,
         gender: createdUser.gender ?? null,
+        hasPhoto: false,
+        hasAadhaar: false,
       },
     });
   } catch (error) {
@@ -528,7 +543,13 @@ export const me = async (req: Request, res: Response): Promise<void> => {
     }
 
     res.status(200).json({
-      user: { id: user._id, email: user.email ?? null, role: user.role ?? null, gender: user.gender ?? null },
+      user: {
+        id: user._id,
+        email: user.email ?? null,
+        gender: user.gender ?? null,
+        hasPhoto: !!(user.photoUrl && user.photoUrl.trim() !== ""),
+        hasAadhaar: !!user.aadhaarHash || !!user.aadhaarEncrypted,
+      },
     });
   } catch (error) {
     console.error("Auth me Error:", error);

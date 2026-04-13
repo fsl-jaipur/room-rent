@@ -1,76 +1,52 @@
-import { Link } from 'react-router-dom';
-import { Search, Home as HomeIcon, Shield, Clock } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
-import brandLogo from '../../assets/Roombaazi Final Logo.png';
+import { Link } from "react-router-dom";
+import { Search, Home as HomeIcon, Shield, Clock } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
+import brandLogo from "../../assets/Roombaazi Final Logo.png";
 
 export default function Home() {
   const { user } = useAuth();
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-color)' }}>
-      <section
-        style={{
-          // background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%)',
-          color: 'var(--text-main)',
-          padding: '4rem 1.5rem',
-          textAlign: 'center'
-        }}
-      >
-        <div style={{ width: '100%' }}>
-          <img
-            src={brandLogo}
-            alt="Roombaazi"
-            style={{ width: '260px', maxWidth: '90%', margin: '0 auto 1.5rem', display: 'block' }}
-          />
-          <h1
-            style={{
-              fontSize: 'clamp(2rem, 5vw, 3.5rem)',
-              fontWeight: 700,
-              marginBottom: '1rem',
-              color: 'var(--text-main)'
-            }}
-          >
-            Find Your Perfect Rental Home
-          </h1>
-          <p
-            style={{
-              fontSize: 'clamp(1rem, 2vw, 1.25rem)',
-              marginBottom: '2.5rem',
-              color: 'var(--text-main)',
-              margin: '0 auto 2.5rem'
-            }}
-          >
-            Discover thousands of verified rental properties. Simple, safe, and hassle-free.
+    <div id="wrapper">
+      <section id="hero">
+        <div style={{ width: "100%" }}>
+          <img id="logo" src={brandLogo} alt="Roombaazi" />
+          <h1>Find Your Perfect Rental Home</h1>
+          <p>
+            Discover thousands of verified rental properties. Simple, safe, and
+            hassle-free.
           </p>
 
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "1rem",
+              justifyContent: "center",
+              flexWrap: "wrap",
+            }}
+          >
             {user ? (
               <>
-                <Link to="/listings" style={{ textDecoration: 'none' }}>
+                <Link to="/listings" style={{ textDecoration: "none" }}>
                   <button
-                    className="btn"
+                    className="btn btn-accent"
                     style={{
-                      background: 'white',
-                      color: 'var(--brand-primary)',
-                      padding: '0.875rem 2rem',
-                      fontSize: '1.0625rem',
-                      fontWeight: 600
+                      padding: "0.875rem 2rem",
+                      fontSize: "1.0625rem",
+                      fontWeight: 600,
                     }}
                   >
                     <Search size={20} />
                     Browse Properties
                   </button>
                 </Link>
-                <Link to="/add-listing" style={{ textDecoration: 'none' }}>
+                <Link to="/add-listing" style={{ textDecoration: "none" }}>
                   <button
-                    className="btn"
+                    className="btn btn-primary"
                     style={{
-                      background: 'transparent',
-                      color: 'white',
-                      border: '2px solid white',
-                      padding: '0.875rem 2rem',
-                      fontSize: '1.0625rem',
-                      fontWeight: 600
+                      padding: "0.875rem 2rem",
+                      fontSize: "1.0625rem",
+                      fontWeight: 600,
                     }}
                   >
                     Post Your Property
@@ -79,30 +55,25 @@ export default function Home() {
               </>
             ) : (
               <>
-                <Link to="/register" style={{ textDecoration: 'none' }}>
+                <Link to="/register" style={{ textDecoration: "none" }}>
                   <button
-                    className="btn"
+                    className="btn btn-accent"
                     style={{
-                      background: 'white',
-                      color: 'var(--brand-primary)',
-                      padding: '0.875rem 2rem',
-                      fontSize: '1.0625rem',
-                      fontWeight: 600
+                      padding: "0.875rem 2rem",
+                      fontSize: "1.0625rem",
+                      fontWeight: 600,
                     }}
                   >
                     Get Started
                   </button>
                 </Link>
-                <Link to="/login" style={{ textDecoration: 'none' }}>
+                <Link to="/login" style={{ textDecoration: "none" }}>
                   <button
-                    className="btn"
+                    className="btn btn-primary"
                     style={{
-                      background: 'transparent',
-                      color: 'white',
-                      border: '2px solid white',
-                      padding: '0.875rem 2rem',
-                      fontSize: '1.0625rem',
-                      fontWeight: 600
+                      padding: "0.875rem 2rem",
+                      fontSize: "1.0625rem",
+                      fontWeight: 600,
                     }}
                   >
                     Sign In
@@ -114,14 +85,14 @@ export default function Home() {
         </div>
       </section>
 
-      <section style={{ padding: '4rem 1.5rem', background: 'var(--bg-card)' }}>
-        <div style={{ width: '100%' }}>
+      <section style={{ padding: "4rem 1.5rem", background: "var(--bg-card)" }}>
+        <div style={{ width: "100%" }}>
           <h2
             style={{
-              textAlign: 'center',
-              fontSize: '2rem',
-              marginBottom: '3rem',
-              color: 'var(--text-main)'
+              textAlign: "center",
+              fontSize: "2rem",
+              marginBottom: "3rem",
+              color: "var(--text-main)",
             }}
           >
             Why Choose Roombaazi?
@@ -129,73 +100,82 @@ export default function Home() {
 
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-              gap: '2rem'
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: "2rem",
             }}
           >
-            <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <div style={{ textAlign: "center", padding: "2rem" }}>
               <div
                 style={{
-                  width: '80px',
-                  height: '80px',
-                  background: 'linear-gradient(135deg, rgba(31, 79, 118, 0.15) 0%, rgba(239, 180, 91, 0.2) 100%)',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 1.5rem',
-                  color: 'var(--brand-primary)'
+                  width: "80px",
+                  height: "80px",
+                  background:
+                    "linear-gradient(135deg, rgba(31, 79, 118, 0.15) 0%, rgba(239, 180, 91, 0.2) 100%)",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 1.5rem",
+                  color: "var(--brand-primary)",
                 }}
               >
                 <Search size={36} />
               </div>
-              <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>Easy Search</h3>
-              <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
+              <h3 style={{ fontSize: "1.25rem", marginBottom: "0.75rem" }}>
+                Easy Search
+              </h3>
+              <p style={{ color: "var(--text-muted)", lineHeight: "1.6" }}>
                 Find your ideal property with powerful filters and smart search
               </p>
             </div>
 
-            <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <div style={{ textAlign: "center", padding: "2rem" }}>
               <div
                 style={{
-                  width: '80px',
-                  height: '80px',
-                  background: 'linear-gradient(135deg, rgba(31, 79, 118, 0.15) 0%, rgba(239, 180, 91, 0.2) 100%)',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 1.5rem',
-                  color: 'var(--brand-primary)'
+                  width: "80px",
+                  height: "80px",
+                  background:
+                    "linear-gradient(135deg, rgba(31, 79, 118, 0.15) 0%, rgba(239, 180, 91, 0.2) 100%)",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 1.5rem",
+                  color: "var(--brand-primary)",
                 }}
               >
                 <Shield size={36} />
               </div>
-              <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>Verified Listings</h3>
-              <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
+              <h3 style={{ fontSize: "1.25rem", marginBottom: "0.75rem" }}>
+                Verified Listings
+              </h3>
+              <p style={{ color: "var(--text-muted)", lineHeight: "1.6" }}>
                 All properties are verified for authenticity and accuracy
               </p>
             </div>
 
-            <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <div style={{ textAlign: "center", padding: "2rem" }}>
               <div
                 style={{
-                  width: '80px',
-                  height: '80px',
-                  background: 'linear-gradient(135deg, rgba(31, 79, 118, 0.15) 0%, rgba(239, 180, 91, 0.2) 100%)',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 1.5rem',
-                  color: 'var(--brand-primary)'
+                  width: "80px",
+                  height: "80px",
+                  background:
+                    "linear-gradient(135deg, rgba(31, 79, 118, 0.15) 0%, rgba(239, 180, 91, 0.2) 100%)",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 1.5rem",
+                  color: "var(--brand-primary)",
                 }}
               >
                 <Clock size={36} />
               </div>
-              <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>Quick Process</h3>
-              <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
+              <h3 style={{ fontSize: "1.25rem", marginBottom: "0.75rem" }}>
+                Quick Process
+              </h3>
+              <p style={{ color: "var(--text-muted)", lineHeight: "1.6" }}>
                 Connect with owners instantly and move in faster
               </p>
             </div>
@@ -205,33 +185,41 @@ export default function Home() {
 
       <section
         style={{
-          padding: '4rem 1.5rem',
-          background: 'var(--bg-color)',
-          textAlign: 'center'
+          padding: "4rem 1.5rem",
+          background: "var(--bg-color)",
+          textAlign: "center",
         }}
       >
-        <div style={{ width: '100%' }}>
-          <HomeIcon size={48} style={{ color: 'var(--brand-primary)', marginBottom: '1.5rem' }} />
-          <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>Ready to Find Your Home?</h2>
+        <div style={{ width: "100%" }}>
+          <HomeIcon
+            size={48}
+            style={{ color: "var(--brand-primary)", marginBottom: "1.5rem" }}
+          />
+          <h2 style={{ fontSize: "2rem", marginBottom: "1rem" }}>
+            Ready to Find Your Home?
+          </h2>
           <p
             style={{
-              fontSize: '1.125rem',
-              color: 'var(--text-muted)',
-              marginBottom: '2rem',
-              lineHeight: '1.6'
+              fontSize: "1.125rem",
+              color: "var(--text-muted)",
+              marginBottom: "2rem",
+              lineHeight: "1.6",
             }}
           >
             Join thousands of happy tenants and landlords on Roombaazi
           </p>
-          <Link to={user ? '/listings' : '/register'} style={{ textDecoration: 'none' }}>
+          <Link
+            to={user ? "/listings" : "/register"}
+            style={{ textDecoration: "none" }}
+          >
             <button
               className="btn btn-primary"
               style={{
-                padding: '0.875rem 2.5rem',
-                fontSize: '1.0625rem'
+                padding: "0.875rem 2.5rem",
+                fontSize: "1.0625rem",
               }}
             >
-              {user ? 'Browse Properties' : 'Get Started Free'}
+              {user ? "Browse Properties" : "Get Started Free"}
             </button>
           </Link>
         </div>
@@ -239,15 +227,24 @@ export default function Home() {
 
       <footer
         style={{
-          background: 'var(--brand-primary)',
-          color: 'white',
-          padding: '2rem 1.5rem',
-          textAlign: 'center'
+          background: "var(--brand-dark)",
+          color: "white",
+          padding: "2rem 1.5rem",
+          textAlign: "center",
         }}
       >
-        <div style={{ width: '100%' }}>
-          <img src={brandLogo} alt="Roombaazi" style={{ width: '168px', maxWidth: '70%', margin: '0 auto 0.75rem', display: 'block' }} />
-          <p style={{ margin: 0, opacity: 0.9, color: 'white' }}>
+        <div style={{ width: "100%" }}>
+          <img
+            src={brandLogo}
+            alt="Roombaazi"
+            style={{
+              width: "168px",
+              maxWidth: "70%",
+              margin: "0 auto 0.75rem",
+              display: "block",
+            }}
+          />
+          <p style={{ margin: 0, opacity: 0.9, color: "white" }}>
             © 2026 Roombaazi. All rights reserved.
           </p>
         </div>
@@ -255,4 +252,3 @@ export default function Home() {
     </div>
   );
 }
-

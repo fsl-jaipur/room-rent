@@ -1,10 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap");
 
 :root {
   --brand-primary: #1f4f76;
   --brand-primary-hover: #173d5b;
   --brand-accent: #efb45b;
+  --brand-accent-hover: #d69c3f;
   --brand-secondary: #2f6a99;
+  --brand-secondary-hover: #245275;
+  --brand-dark: #1a1a1a;
 
   --bg-color: #f4f7f9;
   --bg-card: #ffffff;
@@ -14,13 +17,17 @@
   --border-color: #d0dbe5;
   --input-bg: #ffffff;
   --hover-bg: #edf3f8;
-  
+
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
   --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1);
 
-  font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+  font-family:
+    "Manrope",
+    system-ui,
+    -apple-system,
+    sans-serif;
   color: var(--text-main);
   background-color: var(--bg-color);
   font-synthesis: none;
@@ -40,7 +47,11 @@ body {
   min-height: 100vh;
   background:
     radial-gradient(circle at 0% 0%, rgba(15, 118, 110, 0.12), transparent 42%),
-    radial-gradient(circle at 100% 0%, rgba(245, 158, 11, 0.12), transparent 38%),
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(245, 158, 11, 0.12),
+      transparent 38%
+    ),
     var(--bg-color);
 }
 
@@ -62,7 +73,7 @@ body {
 
 /* Typography */
 h1 {
-  font-family: 'Sora', 'Manrope', sans-serif;
+  font-family: "Sora", "Manrope", sans-serif;
   font-size: 2rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
@@ -70,7 +81,7 @@ h1 {
 }
 
 h2 {
-  font-family: 'Sora', 'Manrope', sans-serif;
+  font-family: "Sora", "Manrope", sans-serif;
   font-size: 1.5rem;
   font-weight: 600;
   margin-bottom: 0.75rem;
@@ -78,7 +89,7 @@ h2 {
 }
 
 h3 {
-  font-family: 'Sora', 'Manrope', sans-serif;
+  font-family: "Sora", "Manrope", sans-serif;
   font-size: 1.125rem;
   font-weight: 600;
   margin-bottom: 0.5rem;
@@ -166,10 +177,31 @@ p {
   color: white;
   border-color: var(--brand-primary);
 }
+.btn-secondary {
+  background: var(--brand-secondary);
+  color: white;
+  border-color: var(--brand-secondary);
+}
+.btn-accent {
+  background: var(--brand-accent);
+  color: white;
+  border-color: var(--brand-accent);
+}
 
 .btn-primary:hover:not(:disabled) {
   background: var(--brand-primary-hover);
   border-color: var(--brand-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--brand-secondary-hover);
+  border-color: var(--brand-secondary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.btn-accent:hover:not(:disabled) {
+  
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
@@ -207,13 +239,31 @@ p {
 }
 
 /* Helpers */
-.flex-row { display: flex; gap: 1rem; align-items: center; }
-.flex-col { display: flex; flex-direction: column; gap: 1rem; }
-.justify-between { justify-content: space-between; }
-.w-full { width: 100%; }
-.mt-4 { margin-top: 1rem; }
-.mb-4 { margin-bottom: 1rem; }
-.text-center { text-align: center; }
+.flex-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+.flex-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.justify-between {
+  justify-content: space-between;
+}
+.w-full {
+  width: 100%;
+}
+.mt-4 {
+  margin-top: 1rem;
+}
+.mb-4 {
+  margin-bottom: 1rem;
+}
+.text-center {
+  text-align: center;
+}
 
 .listings-layout {
   display: grid;
@@ -327,6 +377,32 @@ p {
 .nav-link.active {
   color: var(--brand-primary);
   background: rgba(31, 79, 118, 0.1);
+}
+
+.profile-link-wrapper {
+  position: relative;
+}
+
+.profile-nudge-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.15rem 0.35rem;
+  border-radius: 12px;
+  box-shadow: 0 0 0 2px var(--bg-card);
+  animation: pulse-nudge 2s infinite;
+  z-index: 10;
+  pointer-events: none;
+}
+
+@keyframes pulse-nudge {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  50% { transform: scale(1.05); box-shadow: 0 0 0 5px rgba(245, 158, 11, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
 }
 
 /* Listing Card */
@@ -515,7 +591,11 @@ p {
   color: white;
   margin-bottom: 1rem;
   padding: 0.75rem;
-  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--brand-primary) 0%,
+    var(--brand-accent) 100%
+  );
   border-radius: 8px;
   text-align: center;
 }
@@ -563,7 +643,11 @@ p {
 }
 
 .checkbox-pill:has(input:checked) {
-  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--brand-primary) 0%,
+    var(--brand-accent) 100%
+  );
   color: white;
   border-color: var(--brand-primary);
 }
@@ -609,7 +693,11 @@ p {
   border: 1px solid var(--border-color);
   border-radius: 16px;
   padding: 1.5rem;
-  background: linear-gradient(120deg, rgba(15, 118, 110, 0.1), rgba(245, 158, 11, 0.1));
+  background: linear-gradient(
+    120deg,
+    rgba(15, 118, 110, 0.1),
+    rgba(245, 158, 11, 0.1)
+  );
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -640,7 +728,7 @@ p {
 }
 
 .listings-hero-stat strong {
-  font-family: 'Sora', 'Manrope', sans-serif;
+  font-family: "Sora", "Manrope", sans-serif;
   font-size: 1.75rem;
   color: var(--brand-secondary);
 }
@@ -1228,19 +1316,31 @@ p {
 
 /* Bright Color Accents */
 .listing-card-badge {
-  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--brand-primary) 0%,
+    var(--brand-accent) 100%
+  );
   color: white;
   box-shadow: 0 2px 8px rgba(31, 79, 118, 0.3);
 }
 
 .listing-card-favorite:hover {
-  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--brand-primary) 0%,
+    var(--brand-accent) 100%
+  );
   color: white;
   transform: scale(1.1);
 }
 
 .filter-header h3 {
-  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--brand-primary) 0%,
+    var(--brand-accent) 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1248,7 +1348,11 @@ p {
 
 /* Pagination with bright colors */
 .pagination button:not(:disabled):hover {
-  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--brand-primary) 0%,
+    var(--brand-accent) 100%
+  );
   color: white;
   border-color: var(--brand-primary);
 }
@@ -1256,7 +1360,11 @@ p {
 /* Enhanced hover for nav links */
 .nav-link:hover {
   color: var(--brand-primary);
-  background: linear-gradient(135deg, rgba(31, 79, 118, 0.08) 0%, rgba(239, 180, 91, 0.08) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(31, 79, 118, 0.08) 0%,
+    rgba(239, 180, 91, 0.08) 100%
+  );
 }
 
 /* Bright focus ring for accessibility */
@@ -1276,7 +1384,9 @@ p {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .skeleton {
@@ -1308,7 +1418,11 @@ p {
 
 /* Bright badge variants */
 .badge-primary {
-  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--brand-primary) 0%,
+    var(--brand-accent) 100%
+  );
   color: white;
 }
 
@@ -1329,7 +1443,11 @@ p {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--brand-primary) 0%,
+    var(--brand-accent) 100%
+  );
   border-radius: 5px;
 }
 
@@ -1337,6 +1455,45 @@ p {
   background: var(--brand-primary);
 }
 
-
-
-
+/* Rohit's css */
+#wrapper {
+  min-height: 100vh;
+  background: var(--bg-color);
+}
+#hero {
+  color: var(--text-main);
+  padding: 0.5rem 1.5rem 4rem;
+  text-align: center;
+}
+#logo {
+  width: 200px;
+  max-width: 90%;
+  margin: 0 auto 1.5rem;
+  display: block;
+}
+#hero h1 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 700;
+  margin-top: 5rem;
+  color: var(--text-main);
+}
+#hero p {
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  color: var(--text-main);
+  margin: 0 auto 2.5rem;
+}
+#login-register-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.centered-div {
+  width: 100%;
+  max-width: 480px;
+}
+.input-style:disabled {
+  background-color: light-dark(rgba(239, 239, 239, 0.3), rgba(59, 59, 59, 0.3));
+  cursor: not-allowed;
+  color: light-dark(rgb(84, 84, 84), rgb(170, 170, 170));
+}

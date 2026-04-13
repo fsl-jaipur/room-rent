@@ -39,7 +39,7 @@ const emptyPayload: ProfilePayload = {
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, refreshSession } = useAuth();
   const { showToast } = useToast();
   const [form, setForm] = useState<ProfilePayload>(emptyPayload);
   const [aadhaarLocked, setAadhaarLocked] = useState(false);
@@ -106,6 +106,7 @@ export default function ProfilePage() {
       if ((data.profile?.aadhaar || "").trim()) {
         setAadhaarLocked(true);
       }
+      void refreshSession();
       showToast(data.message || "Profile updated successfully", "success");
     } catch (error: unknown) {
       if (error instanceof ApiError && error.status === 401) {
@@ -132,6 +133,7 @@ export default function ProfilePage() {
         body: formData,
       });
       setForm((prev) => ({ ...prev, photo: data.url }));
+      void refreshSession();
       showToast("Photo uploaded successfully", "success");
     } catch (error: unknown) {
       setErrorMsg(error instanceof Error ? error.message : "Image upload failed");
@@ -233,7 +235,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="form-group">
-              <label>Email</label>
+              <label>Email <span style={{ color: "var(--text-muted)" }}>(read only)</span></label>
               <input
                 type="email"
                 className="input-style"

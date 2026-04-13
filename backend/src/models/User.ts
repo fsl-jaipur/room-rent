@@ -2,7 +2,7 @@ import mongoose, { Schema, type Document } from "mongoose";
 
 export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
-  role: "Landlord" | "Tenant";
+  // role: "Landlord" | "Tenant";
   fullName: string;
   email?: string;
   phone: string;
@@ -24,11 +24,11 @@ export interface IUser extends Document {
 
 const userSchema = new Schema<IUser>(
   {
-    role: {
-      type: String,
-      enum: ["Landlord", "Tenant"],
-      default: "Tenant",
-    },
+    // role: {
+    //   type: String,
+    //   enum: ["Landlord", "Tenant"],
+    //   default: "Tenant",
+    // },
     fullName: { type: String, required: true, trim: true },
     email: { type: String, trim: true, lowercase: true },
     phone: { type: String, required: true, trim: true },
@@ -50,14 +50,14 @@ const userSchema = new Schema<IUser>(
   },
   {
     timestamps: true, // auto createdAt + updatedAt
-  }
+  },
 );
 
 // Indexes
 userSchema.index({ email: 1 }, { unique: true, sparse: true });
 userSchema.index({ phone: 1 }, { unique: true });
 userSchema.index({ aadhaarHash: 1 }, { unique: true, sparse: true });
-userSchema.index({ role: 1, isActive: 1 });
+// userSchema.index({ role: 1, isActive: 1 });
 userSchema.index({ location: "2dsphere" });
 
 export const User = mongoose.model<IUser>("User", userSchema);
