@@ -54,8 +54,9 @@ interface RoomDetails {
   bedType: 'Single' | 'Double' | 'Mixed' | '';
   singleBedCount: number | '';
   doubleBedCount: number | '';
+  rentTiers: { occupants: number; rent: number | '' }[];
 }
-type RoomPayload = Omit<RoomDetails, 'id'>;
+type RoomPayload = Omit<RoomDetails, 'id' | 'rentTiers'> & { rentTiers: { occupants: number; rent: number }[] };
 
 type UploadSlot = 'exterior' | `room-${number}-${number}`;
 const IMAGES_PER_ROOM = 3;
@@ -77,6 +78,7 @@ const createEmptyRoom = (): RoomDetails => ({
   bedType: '',
   singleBedCount: '',
   doubleBedCount: '',
+  rentTiers: [],
 });
 
 export default function AddListing() {
@@ -382,6 +384,9 @@ export default function AddListing() {
             room.bedType === 'Double' || room.bedType === 'Mixed'
               ? Number(room.doubleBedCount)
               : 0,
+          rentTiers: room.rentTiers
+            .filter((t) => t.rent !== '' && Number(t.rent) > 0)
+            .map((t) => ({ occupants: t.occupants, rent: Number(t.rent) })),
         };
         return roomPayload as RoomPayload;
       });
@@ -615,7 +620,19 @@ export default function AddListing() {
                     <select 
                       className="input-style"
                       value={room.maxOccupants}
-                      onChange={(e) => updateRoom(room.id, 'maxOccupants', e.target.value ? parseInt(e.target.value, 10) : '')}
+                      onChange={(e) => {
+                        const val = e.target.value ? parseInt(e.target.value, 10) : '';
+                        const newTiers = typeof val === 'number' && val > 1
+                          ? Array.from({ length: val - 1 }, (_, i) => {
+                              const occ = val - 1 - i;
+                              const existing = room.rentTiers.find((t) => t.occupants === occ);
+                              return { occupants: occ, rent: existing?.rent ?? '' };
+                            })
+                          : [];
+                        setRooms((prev) =>
+                          prev.map((r) => r.id === room.id ? { ...r, maxOccupants: val, rentTiers: newTiers } : r)
+                        );
+                      }}
                     >
                       <option value="" disabled>Select max occupants</option>
                       <option value={1}>1</option>
@@ -626,7 +643,7 @@ export default function AddListing() {
                   </div>
 
                   <div className="form-group">
-                    <label>Monthly Rent (₹)</label>
+                    <label>Monthly Rent (₹) <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '0.85em' }}>for {room.maxOccupants || 'max'} occupant{Number(room.maxOccupants) > 1 ? 's' : ''}</span></label>
                     <input 
                       type="text"
                       className="input-style"
@@ -636,6 +653,28 @@ export default function AddListing() {
                       }
                     />
                   </div>
+
+                  {room.rentTiers.length > 0 && room.rentTiers.map((tier) => (
+                    <div className="form-group" key={tier.occupants}>
+                      <label>Rent for {tier.occupants} Occupant{tier.occupants > 1 ? 's' : ''} (₹)</label>
+                      <input
+                        type="text"
+                        className="input-style"
+                        placeholder={`e.g. rent for ${tier.occupants} person`}
+                        value={tier.rent}
+                        onChange={(e) => {
+                          const val = toOptionalNumber(e.target.value);
+                          setRooms((prev) =>
+                            prev.map((r) =>
+                              r.id === room.id
+                                ? { ...r, rentTiers: r.rentTiers.map((t) => t.occupants === tier.occupants ? { ...t, rent: val } : t) }
+                                : r
+                            )
+                          );
+                        }}
+                      />
+                    </div>
+                  ))}
 
                   <div className="form-group">
                     <label>Furnishing</label>

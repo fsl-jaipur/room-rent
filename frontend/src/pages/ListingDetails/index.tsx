@@ -27,6 +27,7 @@ type ListingDetails = {
   foodPreferenceId: number;
   foodPreferenceName: string;
   monthlyRent: number;
+  rentTiers?: { occupants: number; rent: number }[];
   securityDeposit: number | null;
   availableFrom: string;
   addressLine: string;
@@ -385,8 +386,23 @@ export default function ListingDetailsPage() {
                     ₹{Number(item.monthlyRent).toLocaleString('en-IN')}
                     <span style={{ fontSize: '1.125rem', fontWeight: 500, color: 'var(--text-muted)' }}>/month</span>
                   </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 0.5rem' }}>
+                    for {item.maxOccupants} occupant{item.maxOccupants > 1 ? 's' : ''}
+                  </p>
+                  {Array.isArray(item.rentTiers) && item.rentTiers.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.5rem' }}>
+                      {[...item.rentTiers]
+                        .sort((a, b) => b.occupants - a.occupants)
+                        .map((tier) => (
+                          <div key={tier.occupants} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            <span>{tier.occupants} occupant{tier.occupants > 1 ? 's' : ''}</span>
+                            <span style={{ fontWeight: 600, color: 'var(--brand-primary)' }}>₹{Number(tier.rent).toLocaleString('en-IN')}/mo</span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                   {item.securityDeposit && item.securityDeposit > 0 && (
-                    <p style={{ fontSize: '0.9375rem', margin: 0, color: 'var(--text-muted)' }}>
+                    <p style={{ fontSize: '0.9375rem', margin: '0.5rem 0 0', color: 'var(--text-muted)' }}>
                       Security Deposit: ₹{Number(item.securityDeposit).toLocaleString('en-IN')}
                     </p>
                   )}

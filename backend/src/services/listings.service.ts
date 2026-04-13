@@ -1,6 +1,6 @@
 import type { ParsedAddress } from "./googleMaps.service";
 import { BlobService, generateReadSasUrl } from "./blob.service.js";
-import Listing, { type IListing, type IListingPhoto } from "../models/Listing.js";
+import Listing, { type IListing, type IListingPhoto, type IRentTier } from "../models/Listing.js";
 import Location from "../models/Location.js";
 import {
   FLOOR_LEVELS,
@@ -32,6 +32,7 @@ export interface CreateListingDto {
     bedType?: "Single" | "Double" | "Mixed";
     singleBedCount?: number;
     doubleBedCount?: number;
+    rentTiers?: { occupants: number; rent: number }[];
   };
   photos?: {
     photoType: "Room" | "Exterior";
@@ -50,6 +51,11 @@ export interface UpdateListingDto {
   photos?: CreateListingDto["photos"];
 }
 
+export interface RentTierItem {
+  occupants: number;
+  rent: number;
+}
+
 export interface ListingItem {
   listingId: string;
   landlordId: string;
@@ -57,6 +63,7 @@ export interface ListingItem {
   colony: string;
   city: string;
   monthlyRent: number;
+  rentTiers: RentTierItem[];
   floorLevelId: number;
   furnishingTypeId: number;
   maxOccupants: number;
@@ -98,6 +105,7 @@ export interface ListingDetailsItem {
   propertyTypeId: number | null;
   propertyTypeName: string | null;
   monthlyRent: number;
+  rentTiers: RentTierItem[];
   securityDeposit: number | null;
   availableFrom: string;
   addressLine: string;
@@ -173,6 +181,7 @@ export class ListingsService {
       landlordName: doc.landlordName ?? "",
       landlordGender: doc.landlordGender ?? null,
       coverPhotoUrl: coverPhoto?.photoUrl ?? null,
+      rentTiers: (doc.rentTiers ?? []).map((t) => ({ occupants: t.occupants, rent: t.rent })),
       createdAt: doc.createdAt?.toISOString() ?? "",
     };
   }
@@ -244,6 +253,9 @@ export class ListingsService {
       singleBedCount: data.roomDetails.singleBedCount ?? undefined,
       doubleBedCount: data.roomDetails.doubleBedCount ?? undefined,
       monthlyRent: data.roomDetails.monthlyRent,
+      rentTiers: Array.isArray(data.roomDetails.rentTiers) && data.roomDetails.rentTiers.length > 0
+        ? data.roomDetails.rentTiers
+        : undefined,
       securityDeposit: data.roomDetails.securityDeposit ?? undefined,
       availableFrom: new Date(data.roomDetails.availableFrom),
       addressLine: data.location.addressLine,
@@ -360,6 +372,9 @@ export class ListingsService {
       singleBedCount: data.roomDetails.singleBedCount ?? null,
       doubleBedCount: data.roomDetails.doubleBedCount ?? null,
       monthlyRent: data.roomDetails.monthlyRent,
+      rentTiers: Array.isArray(data.roomDetails.rentTiers) && data.roomDetails.rentTiers.length > 0
+        ? data.roomDetails.rentTiers
+        : [],
       securityDeposit: data.roomDetails.securityDeposit ?? null,
       availableFrom: new Date(data.roomDetails.availableFrom),
       addressLine: data.location.addressLine,
@@ -555,6 +570,7 @@ export class ListingsService {
         landlordName: landlord?.fullName ?? "",
         landlordGender: landlord?.gender ?? null,
         coverPhotoUrl: coverPhoto?.photoUrl ?? null,
+        rentTiers: (listing.rentTiers as IRentTier[] | undefined ?? []).map((t) => ({ occupants: t.occupants, rent: t.rent })),
         createdAt: listing.createdAt?.toISOString() ?? "",
       };
     });
@@ -603,6 +619,7 @@ export class ListingsService {
         : null,
       propertyTypeName: listing.propertyType ?? null,
       monthlyRent: listing.monthlyRent,
+      rentTiers: (listing.rentTiers as IRentTier[] | undefined ?? []).map((t) => ({ occupants: t.occupants, rent: t.rent })),
       securityDeposit: listing.securityDeposit ?? null,
       availableFrom: listing.availableFrom?.toISOString().split("T")[0] ?? "",
       addressLine: listing.addressLine,

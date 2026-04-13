@@ -388,6 +388,7 @@ export const createListingsWithMedia = async (
         bedType?: "Single" | "Double" | "Mixed";
         singleBedCount?: number;
         doubleBedCount?: number;
+        rentTiers?: { occupants: number; rent: number }[];
       }>;
       exteriorPhotoUrl?: string;
       roomPhotoUrls?: string[][];
@@ -496,6 +497,7 @@ export const createListingsWithMedia = async (
           bedType: room.bedType,
           singleBedCount: room.singleBedCount,
           doubleBedCount: room.doubleBedCount,
+          rentTiers: Array.isArray(room.rentTiers) ? room.rentTiers : undefined,
         },
         photos,
         location: fullLocation,

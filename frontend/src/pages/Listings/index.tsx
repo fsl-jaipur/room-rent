@@ -13,6 +13,7 @@ type Listing = {
   colony: string;
   city: string;
   monthlyRent: number;
+  rentTiers: { occupants: number; rent: number }[];
   maxOccupants: number;
   landlordName: string;
   landlordGender: string | null;
@@ -282,6 +283,7 @@ export default function ListingsPage() {
                       colony={item.colony}
                       city={item.city}
                       monthlyRent={item.monthlyRent}
+                      rentTiers={item.rentTiers ?? []}
                       maxOccupants={item.maxOccupants}
                       landlordGender={item.landlordGender}
                       propertyTypeId={item.propertyTypeId}

@@ -9,6 +9,11 @@ export interface IListingPhoto {
   uploadedAt: Date;
 }
 
+export interface IRentTier {
+  occupants: number;
+  rent: number;
+}
+
 export interface IListing extends Document {
   _id: mongoose.Types.ObjectId;
   landlordId: mongoose.Types.ObjectId;
@@ -25,6 +30,7 @@ export interface IListing extends Document {
   singleBedCount?: number;
   doubleBedCount?: number;
   monthlyRent: number;
+  rentTiers?: IRentTier[];
   securityDeposit?: number;
   availableFrom: Date;
   addressLine: string;
@@ -51,6 +57,14 @@ const listingPhotoSchema = new Schema<IListingPhoto>(
   { _id: false }
 );
 
+const rentTierSchema = new Schema<IRentTier>(
+  {
+    occupants: { type: Number, required: true },
+    rent: { type: Number, required: true, min: 0 },
+  },
+  { _id: false }
+);
+
 const listingSchema = new Schema<IListing>(
   {
     landlordId: {
@@ -72,6 +86,7 @@ const listingSchema = new Schema<IListing>(
     singleBedCount: { type: Number },
     doubleBedCount: { type: Number },
     monthlyRent: { type: Number, required: true, min: 0 },
+    rentTiers: { type: [rentTierSchema], default: undefined },
     securityDeposit: { type: Number },
     availableFrom: { type: Date, required: true },
     addressLine: { type: String, required: true, trim: true },

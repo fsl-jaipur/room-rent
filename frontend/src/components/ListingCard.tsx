@@ -8,6 +8,7 @@ type ListingCardProps = {
   colony: string;
   city: string;
   monthlyRent: number;
+  rentTiers: { occupants: number; rent: number }[];
   maxOccupants: number;
   landlordGender: string | null;
   propertyTypeId: number | null;
@@ -83,7 +84,31 @@ export default function ListingCard(props: ListingCardProps) {
         <div className="listing-card-price">
           ₹{Number(props.monthlyRent).toLocaleString('en-IN')}
           <span className="listing-card-price-label">/mo</span>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '0.3rem' }}>
+            ({props.maxOccupants} occ.)
+          </span>
         </div>
+        {props.rentTiers && props.rentTiers.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginBottom: '0.4rem' }}>
+            {[...props.rentTiers]
+              .sort((a, b) => b.occupants - a.occupants)
+              .map((tier) => (
+                <span
+                  key={tier.occupants}
+                  style={{
+                    fontSize: '0.75rem',
+                    background: 'var(--hover-bg)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '999px',
+                    padding: '0.1rem 0.5rem',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  {tier.occupants} occ: ₹{Number(tier.rent).toLocaleString('en-IN')}
+                </span>
+              ))}
+          </div>
+        )}
         <h3 className="listing-card-title">{props.title}</h3>
         <p className="listing-card-location">
           <MapPin size={16} />
