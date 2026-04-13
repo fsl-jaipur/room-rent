@@ -468,7 +468,7 @@ export default function AddListing() {
                 <label>House No.</label>
                 <input
                   className="input-style"
-                  placeholder="e.g. 24/7"
+                  placeholder="e.g. 24/7 or A123 or 123B"
                   value={houseNo}
                   onChange={(e) => setHouseNo(e.target.value)}
                   required
@@ -723,6 +723,7 @@ export default function AddListing() {
                       <input
                         type="text"
                         className="input-style"
+                        placeholder='How many single beds in the room?'
                         value={room.singleBedCount}
                         onChange={(e) =>
                           updateRoom(
@@ -741,6 +742,7 @@ export default function AddListing() {
                       <input
                         type="text"
                         className="input-style"
+                        placeholder='How many double beds in the room?'
                         value={room.doubleBedCount}
                         onChange={(e) =>
                           updateRoom(
@@ -754,9 +756,9 @@ export default function AddListing() {
                   )}
 
                   <div className="form-group">
-                    <label>Available From (Date & Time)</label>
+                    <label>Available From (Date)</label>
                     <input 
-                      type="datetime-local"
+                      type="date"
                       className="input-style"
                       value={room.availableFrom}
                       onChange={(e) => updateRoom(room.id, 'availableFrom', e.target.value)}
@@ -768,6 +770,7 @@ export default function AddListing() {
                     <input
                       type="text"
                       className="input-style"
+                      placeholder='Enter 0 for no security deposit'
                       value={room.securityDeposit}
                       onChange={(e) =>
                         updateRoom(room.id, 'securityDeposit', toOptionalNumber(e.target.value))
