@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError, apiFetch } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
@@ -47,6 +47,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const initialForm = useRef<ProfilePayload>(emptyPayload);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -57,7 +58,7 @@ export default function ProfilePage() {
       });
 
       const nextProfile = data.profile;
-      setForm({
+      const nextPayload: ProfilePayload = {
         fullName: nextProfile.fullName || "",
         email: nextProfile.email || "",
         location: nextProfile.location || "",
@@ -65,7 +66,9 @@ export default function ProfilePage() {
         phone: nextProfile.phone || "",
         photo: nextProfile.photo || "",
         gender: nextProfile.gender || "",
-      });
+      };
+      setForm(nextPayload);
+      initialForm.current = nextPayload;
       setAadhaarLocked(Boolean((nextProfile.aadhaar || "").trim()));
     } catch (error: unknown) {
       if (error instanceof ApiError && error.status === 401) {
@@ -96,16 +99,29 @@ export default function ProfilePage() {
       return;
     }
 
+    // Only send fields that actually changed
+    const changedFields: Partial<ProfilePayload> = {};
+    for (const key of Object.keys(form) as (keyof ProfilePayload)[]) {
+      if (form[key] !== initialForm.current[key]) {
+        (changedFields as Record<string, unknown>)[key] = form[key];
+      }
+    }
+    if (Object.keys(changedFields).length === 0) {
+      showToast("No changes to save", "info");
+      return;
+    }
+
     setSaving(true);
     setErrorMsg("");
     try {
       const data = await apiFetch<{ message: string; profile: Profile }>("/api/auth/profile", {
-        method: "PUT",
-        body: JSON.stringify(form),
+        method: "PATCH",
+        body: JSON.stringify(changedFields),
       });
       if ((data.profile?.aadhaar || "").trim()) {
         setAadhaarLocked(true);
       }
+      initialForm.current = { ...initialForm.current, ...changedFields };
       void refreshSession();
       showToast(data.message || "Profile updated successfully", "success");
     } catch (error: unknown) {
@@ -134,7 +150,7 @@ export default function ProfilePage() {
       });
       // Persist photo URL to profile immediately
       await apiFetch("/api/auth/profile", {
-        method: "PUT",
+        method: "PATCH",
         body: JSON.stringify({ photo: data.url }),
       });
       setForm((prev) => ({ ...prev, photo: data.url }));
@@ -149,19 +165,6 @@ export default function ProfilePage() {
   };
 
   const avatarFallback = (form.fullName || form.email || "U").trim().charAt(0).toUpperCase();
-
-  const completionPct = Math.round(
-    ([
-      Boolean(form.fullName.trim()),
-      Boolean(form.email.trim()),
-      Boolean(form.phone.trim()),
-      Boolean(form.gender),
-      Boolean(form.aadhaar.trim()),
-      Boolean(form.photo.trim()),
-    ].filter(Boolean).length /
-      6) *
-      100
-  );
 
   if (loading) {
     return (
@@ -206,14 +209,6 @@ export default function ProfilePage() {
           </div>
           <div className="profile-status-chips">
             <span className="badge badge-info">Verified Rental Profile</span>
-            {completionPct < 100 && (
-              <span className="badge" style={{ background: completionPct >= 80 ? 'var(--color-success, #10b981)' : completionPct >= 50 ? 'var(--color-warning, #f59e0b)' : '#ef4444', color: '#fff' }}>
-                {completionPct}% Complete
-              </span>
-            )}
-            {completionPct === 100 && (
-              <span className="badge" style={{ background: 'var(--color-success, #10b981)', color: '#fff' }}>100% Complete</span>
-            )}
             {form.gender && <span className="badge badge-primary">{form.gender}</span>}
           </div>
         </div>

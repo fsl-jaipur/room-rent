@@ -26,6 +26,6 @@ router.post("/logout", logout);
 router.get("/me", requireAuth, me);
 router.get("/profile", requireAuth, getProfile);
 router.post("/profile", requireAuth, createProfile);
-router.put("/profile", requireAuth, updateProfile);
+router.patch("/profile", requireAuth, updateProfile);
 
 export default router;

@@ -50,7 +50,12 @@ const getProfileByUserId = async (userId: string) => {
       if (bsonBuf) return Buffer.from(bsonBuf).toString('utf8') || null;
       return null;
     })(),
-    phone: user.phone ?? null,
+    phone: (() => {
+      const p = user.phone ?? null;
+      // Strip Google signup phone placeholder (starts with 'G' followed by digits)
+      if (p && /^G\d+$/.test(p)) return null;
+      return p;
+    })(),
     photo: user.photoUrl ?? null,
     gender: user.gender ?? null,
   };
@@ -73,7 +78,7 @@ const saveProfile = async (
 
   // Email
   const email = normalizeEmail(trimStringOrNull(payload.email));
-  if (email !== null) {
+  if (hasOwn(payload as object, "email") && email !== null) {
     updates.email = email;
   }
 
@@ -100,7 +105,7 @@ const saveProfile = async (
 
   // Phone
   const phone = trimStringOrNull(payload.phone);
-  if (phone !== null) {
+  if (hasOwn(payload as object, "phone") && phone !== null) {
     updates.phone = phone;
   }
 
