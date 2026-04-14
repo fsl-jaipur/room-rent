@@ -32,7 +32,7 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
-  const { setUser } = useAuth();
+  const { refreshSession } = useAuth();
 
   const passwordError = getPasswordError(password);
   const confirmError =
@@ -63,7 +63,7 @@ export default function Register() {
 
     setLoading(true);
     try {
-      const data = await apiFetch<{
+      await apiFetch<{
         user: { id: string; email: string; role: string };
       }>("/api/auth/register", {
         method: "POST",
@@ -76,7 +76,7 @@ export default function Register() {
         }),
       });
 
-      setUser(data.user);
+      await refreshSession();
       navigate("/listings");
     } catch (err: unknown) {
       const message =

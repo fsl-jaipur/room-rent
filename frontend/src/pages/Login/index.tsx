@@ -20,7 +20,7 @@ export default function Login() {
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   const navigate = useNavigate();
-  const { setUser } = useAuth();
+  const { refreshSession } = useAuth();
 
   useEffect(() => {
     if (!isGoogleConfigured || !googleButtonRef.current) {
@@ -47,14 +47,14 @@ export default function Login() {
           setErrorMsg("");
 
           try {
-            const data = await apiFetch<{
+            await apiFetch<{
               user: { id: string; email: string; role: string };
             }>("/api/auth/google", {
               method: "POST",
               body: JSON.stringify({ idToken: credential }),
             });
 
-            setUser(data.user);
+            await refreshSession();
             navigate("/listings");
           } catch (err: unknown) {
             const message =
@@ -103,7 +103,7 @@ export default function Login() {
     return () => {
       cancelled = true;
     };
-  }, [isGoogleConfigured, googleClientId, navigate, setUser]);
+  }, [isGoogleConfigured, googleClientId, navigate, refreshSession]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,14 +111,14 @@ export default function Login() {
     setErrorMsg("");
 
     try {
-      const data = await apiFetch<{
+      await apiFetch<{
         user: { id: string; email: string; role: string };
       }>("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({ email: email.trim(), password }),
       });
 
-      setUser(data.user);
+      await refreshSession();
       navigate("/listings");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";
