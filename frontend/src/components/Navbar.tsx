@@ -9,8 +9,20 @@ export default function Navbar() {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const profileCompletionPct =
-    user ? 50 + (user.hasPhoto ? 25 : 0) + (user.hasAadhaar ? 25 : 0) : 0;
+  const profileCompletionPct = user
+    ? Math.round(
+        [
+          user.hasFullName,
+          user.hasEmail,
+          user.hasPhone,
+          user.hasGender,
+          user.hasAadhaar,
+          user.hasPhoto,
+        ].filter(Boolean).length /
+          6 *
+          100
+      )
+    : 0;
 
   return (
     <nav className="navbar">
@@ -38,8 +50,8 @@ export default function Navbar() {
               <Link to="/profile" className={`nav-link profile-link-wrapper ${isActive('/profile') ? 'active' : ''}`}>
                 <User size={18} />
                 Profile
-                {profileCompletionPct < 100 && (
-                  <span className="profile-nudge-badge" title="Complete your profile!">{profileCompletionPct}%</span>
+                {user && (
+                  <span className="profile-nudge-badge" title={profileCompletionPct < 100 ? 'Complete your profile!' : 'Profile complete'}>{profileCompletionPct}%</span>
                 )}
               </Link>
               <button className="btn btn-outline btn-sm" onClick={logout}>

@@ -6,6 +6,10 @@ interface User {
   id: string;
   email: string;
   role: string;
+  hasFullName?: boolean;
+  hasEmail?: boolean;
+  hasPhone?: boolean;
+  hasGender?: boolean;
   hasPhoto?: boolean;
   hasAadhaar?: boolean;
 }

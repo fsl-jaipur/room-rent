@@ -150,6 +150,19 @@ export default function ProfilePage() {
 
   const avatarFallback = (form.fullName || form.email || "U").trim().charAt(0).toUpperCase();
 
+  const completionPct = Math.round(
+    ([
+      Boolean(form.fullName.trim()),
+      Boolean(form.email.trim()),
+      Boolean(form.phone.trim()),
+      Boolean(form.gender),
+      Boolean(form.aadhaar.trim()),
+      Boolean(form.photo.trim()),
+    ].filter(Boolean).length /
+      6) *
+      100
+  );
+
   if (loading) {
     return (
       <>
@@ -193,6 +206,14 @@ export default function ProfilePage() {
           </div>
           <div className="profile-status-chips">
             <span className="badge badge-info">Verified Rental Profile</span>
+            {completionPct < 100 && (
+              <span className="badge" style={{ background: completionPct >= 80 ? 'var(--color-success, #10b981)' : completionPct >= 50 ? 'var(--color-warning, #f59e0b)' : '#ef4444', color: '#fff' }}>
+                {completionPct}% Complete
+              </span>
+            )}
+            {completionPct === 100 && (
+              <span className="badge" style={{ background: 'var(--color-success, #10b981)', color: '#fff' }}>100% Complete</span>
+            )}
             {form.gender && <span className="badge badge-primary">{form.gender}</span>}
           </div>
         </div>
@@ -286,6 +307,11 @@ export default function ProfilePage() {
                 maxLength={12}
                 disabled={aadhaarLocked}
               />
+              {!aadhaarLocked && (
+                <p style={{ margin: '0.3rem 0 0', fontSize: '0.78rem', fontStyle: 'italic', color: 'var(--text-muted)' }}>
+                  Your Aadhaar number is permanent — once saved it cannot be modified. Please verify it carefully before submitting.
+                </p>
+              )}
             </div>
 
             <div className="form-group">

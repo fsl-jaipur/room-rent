@@ -572,6 +572,12 @@ export const me = async (req: Request, res: Response): Promise<void> => {
         id: user._id,
         email: user.email ?? null,
         gender: user.gender ?? null,
+        hasFullName: Boolean(user.fullName?.trim()),
+        hasEmail: Boolean(user.email?.trim()),
+        hasPhone: Boolean(user.phone?.trim()),
+        hasGender: Boolean(user.gender),
+        hasPhoto: Boolean(user.photoUrl),
+        hasAadhaar: Boolean(user.aadhaarEncrypted),
       },
     });
   } catch (error) {
