@@ -10,7 +10,7 @@ import env from "../config/env.js";
 
 // type UserRole = "Landlord" | "Tenant";
 // const ALLOWED_ROLES: UserRole[] = ["Landlord", "Tenant"];
-type UserGender = "Male" | "Female";
+type UserGender = "Male" | "Female" | "Other";
 
 const googleClient = new OAuth2Client();
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
@@ -170,7 +170,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   const normalizedGender = normalizeGender(gender);
 
   if (gender !== undefined && normalizedGender === null) {
-    res.status(400).json({ error: "Gender must be Male or Female" });
+    res.status(400).json({ error: "Gender must be Male, Female, or Other" });
     return;
   }
 

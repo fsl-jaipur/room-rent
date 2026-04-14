@@ -1,48 +1,16 @@
-import { useEffect, useState } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Search, User, LogOut } from 'lucide-react';
+import { User, LogOut } from 'lucide-react';
 import brandLogo from '../assets/Roombaazi Final Logo.png';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [searchValue, setSearchValue] = useState('');
 
   const isActive = (path: string) => location.pathname === path;
 
   const profileCompletionPct =
     user ? 50 + (user.hasPhoto ? 25 : 0) + (user.hasAadhaar ? 25 : 0) : 0;
-
-  useEffect(() => {
-    if (location.pathname !== '/listings') return;
-    setSearchValue(searchParams.get('search') || '');
-  }, [location.pathname, searchParams]);
-
-  useEffect(() => {
-    if (location.pathname !== '/listings') return;
-    const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
-    if (navigation?.type !== 'reload') return;
-
-    const next = new URLSearchParams(searchParams);
-    next.delete('search');
-    next.set('page', '1');
-    setSearchValue('');
-    setSearchParams(next);
-  }, [location.pathname, searchParams, setSearchParams]);
-
-  const applySearch = () => {
-    const next = new URLSearchParams(searchParams);
-    const trimmed = searchValue.trim();
-    if (trimmed) {
-      next.set('search', trimmed);
-    } else {
-      next.delete('search');
-    }
-    next.set('page', '1');
-    setSearchParams(next);
-  };
 
   return (
     <nav className="navbar">
@@ -54,26 +22,6 @@ export default function Navbar() {
             className="navbar-brand-logo"
           />
         </Link>
-
-        {user && location.pathname === '/listings' && (
-          <div className="navbar-search">
-            <Search size={18} />
-            <input
-              type="text"
-              placeholder="Search properties, locations..."
-              aria-label="Search properties"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  applySearch();
-                }
-              }}
-              onBlur={applySearch}
-            />
-          </div>
-        )}
 
         <div className="navbar-links">
           {user ? (

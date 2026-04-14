@@ -210,7 +210,7 @@ export class ListingsService {
 
     return locations.map((loc) => ({
       area: loc.area,
-      colonies: [...loc.colonies].sort((a, b) => a.localeCompare(b)),
+      colonies: [...loc.colonies].filter((c) => /[a-zA-Z]/.test(c)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })),
     }));
   }
 
@@ -458,7 +458,7 @@ export class ListingsService {
     }
 
     if (filters.city && filters.city.trim()) {
-      query.city = filters.city.trim();
+      query.city = { $regex: filters.city.trim(), $options: "i" };
     }
 
     if (typeof filters.minRent === "number" && Number.isFinite(filters.minRent)) {
@@ -530,13 +530,17 @@ export class ListingsService {
     if (filters.gender && filters.gender.length > 0) {
       const normalizedGenders = filters.gender
         .map((g) => g.trim().toLowerCase())
-        .filter((g) => g === "male" || g === "female")
-        .map((g) => (g === "male" ? "Male" : "Female"));
+        .filter((g) => g === "male" || g === "female" || g === "other")
+        .map((g): "Male" | "Female" | "Other" => {
+          if (g === "male") return "Male";
+          if (g === "female") return "Female";
+          return "Other";
+        });
 
       if (normalizedGenders.length > 0) {
         filteredListings = listings.filter((listing) => {
           const landlord = listing.landlordId as unknown as { fullName?: string; gender?: string };
-          return !!(landlord?.gender && normalizedGenders.includes(landlord.gender as "Male" | "Female"));
+          return !!(landlord?.gender && normalizedGenders.includes(landlord.gender as "Male" | "Female" | "Other"));
         });
       }
     }

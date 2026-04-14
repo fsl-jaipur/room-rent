@@ -1,21 +1,25 @@
-import { MapPin } from 'lucide-react';
+﻿import { useEffect, useRef, useState } from 'react';
+import { MapPin, Building2 } from 'lucide-react';
+
+type FilterState = {
+  search: string;
+  city: string;
+  minRent: number;
+  maxRent: number;
+  maxOccupants: number[];
+  floorLevelId: number[];
+  furnishingTypeId: number[];
+  foodPreferenceId: number[];
+  propertyTypeId: number[];
+  gender: ("Male" | "Female" | "Other")[];
+  allowSmoking: boolean[];
+  sortBy: 'newest' | 'rent_asc' | 'rent_desc';
+};
 
 type FilterSidebarProps = {
-  filters: {
-    search: string;
-    minRent: number;
-    maxRent: number;
-    maxOccupants: number[];
-    floorLevelId: number[];
-    furnishingTypeId: number[];
-    foodPreferenceId: number[];
-    propertyTypeId: number[];
-    gender: ("Male" | "Female")[];
-    allowSmoking: boolean[];
-    sortBy: 'newest' | 'rent_asc' | 'rent_desc';
-  };
-  onFilterChange: (filters: FilterSidebarProps["filters"]) => void;
-  onApply: () => void;
+  filters: FilterState;
+  onFilterChange: (filters: FilterState) => void;
+  onApply: (flushed: FilterState) => void;
   onClear: () => void;
 };
 
@@ -24,6 +28,7 @@ const RENT_MAX = 50000;
 
 const toggleNumber = (current: number[], value: number): number[] =>
   current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+
 const toggleExclusive = <T,>(current: T[], value: T): T[] =>
   current.includes(value) ? [] : [value];
 
@@ -35,6 +40,66 @@ const occupantOptions = [
 ];
 
 export default function FilterSidebar({ filters, onFilterChange, onApply, onClear }: FilterSidebarProps) {
+  const [localSearch, setLocalSearch] = useState(filters.search);
+  const [localCity, setLocalCity] = useState(filters.city);
+  const [prevFilterSearch, setPrevFilterSearch] = useState(filters.search);
+  const [prevFilterCity, setPrevFilterCity] = useState(filters.city);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSearch = useRef(filters.search);
+  const pendingCity = useRef(filters.city);
+  const latestFilters = useRef(filters);
+
+  // Always keep latest filters ref current
+  useEffect(() => { latestFilters.current = filters; });
+
+  // Sync pending refs with parent resets (ref mutations in effects are fine)
+  useEffect(() => { pendingSearch.current = filters.search; }, [filters.search]);
+  useEffect(() => { pendingCity.current = filters.city; }, [filters.city]);
+
+  // Derived local state from parent — mid-render pattern (no effects needed for setState)
+  if (prevFilterSearch !== filters.search) {
+    setPrevFilterSearch(filters.search);
+    setLocalSearch(filters.search);
+  }
+  if (prevFilterCity !== filters.city) {
+    setPrevFilterCity(filters.city);
+    setLocalCity(filters.city);
+  }
+
+  const fireDebounced = () => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      onFilterChange({
+        ...latestFilters.current,
+        search: pendingSearch.current,
+        city: pendingCity.current,
+      });
+    }, 500);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setLocalSearch(value);
+    pendingSearch.current = value;
+    fireDebounced();
+  };
+
+  const handleCityChange = (value: string) => {
+    setLocalCity(value);
+    pendingCity.current = value;
+    fireDebounced();
+  };
+
+  const handleApply = () => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    const flushed: FilterState = {
+      ...latestFilters.current,
+      search: pendingSearch.current,
+      city: pendingCity.current,
+    };
+    onFilterChange(flushed);
+    onApply(flushed);
+  };
+
   return (
     <aside className="filter-sidebar">
       <div className="filter-header">
@@ -42,50 +107,83 @@ export default function FilterSidebar({ filters, onFilterChange, onApply, onClea
         <button className="btn-text" onClick={onClear}>Clear all</button>
       </div>
 
+      {/* Search by area / colony */}
       <div className="filter-section">
         <label className="filter-label">
-          <MapPin size={16} style={{ display: 'inline', marginRight: '0.375rem' }} />
-          Search Location
+          <MapPin size={14} style={{ display: 'inline', marginRight: '0.3rem' }} />
+          Search by Area / Colony
         </label>
         <input
           className="input-style"
-          value={filters.search}
-          onChange={(e) => onFilterChange({ ...filters, search: e.target.value })}
-          placeholder="Search by keyword (area, city, owner, type...)"
+          value={localSearch}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          placeholder="e.g. Malviya Nagar, Sector 5..."
         />
       </div>
 
+      {/* Search by city */}
+      <div className="filter-section">
+        <label className="filter-label">
+          <Building2 size={14} style={{ display: 'inline', marginRight: '0.3rem' }} />
+          Search by City
+        </label>
+        <input
+          className="input-style"
+          value={localCity}
+          onChange={(e) => handleCityChange(e.target.value)}
+          placeholder="e.g. Jaipur"
+        />
+      </div>
+
+      {/* Budget sliders with labels */}
       <div className="filter-section">
         <label className="filter-label">Budget</label>
-        <div className="budget-display">
-          ₹{filters.minRent.toLocaleString('en-IN')} - ₹{filters.maxRent.toLocaleString('en-IN')}
-        </div>
-        <div className="range-inputs">
+
+        <div style={{ marginBottom: '0.6rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '0.2rem' }}>
+            <span style={{ color: 'var(--text-muted)' }}>Min Rent</span>
+            <span style={{ fontWeight: 600 }}>{'₹'}{filters.minRent.toLocaleString('en-IN')}</span>
+          </div>
           <input
             type="range"
             min={RENT_MIN}
             max={RENT_MAX}
             step={500}
             value={filters.minRent}
+            style={{ width: '100%' }}
             onChange={(e) => {
               const next = Number(e.target.value);
               onFilterChange({ ...filters, minRent: Math.min(next, filters.maxRent) });
             }}
           />
+        </div>
+
+        <div style={{ marginBottom: '0.4rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '0.2rem' }}>
+            <span style={{ color: 'var(--text-muted)' }}>Max Rent</span>
+            <span style={{ fontWeight: 600 }}>{'₹'}{filters.maxRent.toLocaleString('en-IN')}</span>
+          </div>
           <input
             type="range"
             min={RENT_MIN}
             max={RENT_MAX}
             step={500}
             value={filters.maxRent}
+            style={{ width: '100%' }}
             onChange={(e) => {
               const next = Number(e.target.value);
               onFilterChange({ ...filters, maxRent: Math.max(next, filters.minRent) });
             }}
           />
         </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.73rem', color: 'var(--text-muted)' }}>
+          <span>{'₹'}{RENT_MIN.toLocaleString('en-IN')}</span>
+          <span>{'₹'}{RENT_MAX.toLocaleString('en-IN')}</span>
+        </div>
       </div>
 
+      {/* Occupants â€“ single select */}
       <div className="filter-section">
         <label className="filter-label">Occupants</label>
         <div className="checkbox-grid">
@@ -107,6 +205,7 @@ export default function FilterSidebar({ filters, onFilterChange, onApply, onClea
         </div>
       </div>
 
+      {/* Property Type â€“ single select */}
       <div className="filter-section">
         <label className="filter-label">Property Type</label>
         <div className="checkbox-list">
@@ -122,7 +221,7 @@ export default function FilterSidebar({ filters, onFilterChange, onApply, onClea
                 onChange={() =>
                   onFilterChange({
                     ...filters,
-                    propertyTypeId: toggleNumber(filters.propertyTypeId, type.id),
+                    propertyTypeId: toggleExclusive(filters.propertyTypeId, type.id),
                   })
                 }
               />
@@ -132,16 +231,17 @@ export default function FilterSidebar({ filters, onFilterChange, onApply, onClea
         </div>
       </div>
 
+      {/* Room For (Gender) â€“ single select */}
       <div className="filter-section">
-        <label className="filter-label">Room For </label>
+        <label className="filter-label">Room For</label>
         <div className="checkbox-list">
-          {["Male", "Female"].map((g) => (
+          {["Male", "Female", "Other"].map((g) => (
             <label key={g} className="checkbox-item">
               <input
                 type="checkbox"
-                checked={filters.gender.includes(g as "Male" | "Female")}
+                checked={filters.gender.includes(g as "Male" | "Female" | "Other")}
                 onChange={() => {
-                  const value = g as "Male" | "Female";
+                  const value = g as "Male" | "Female" | "Other";
                   onFilterChange({
                     ...filters,
                     gender: toggleExclusive(filters.gender, value),
@@ -154,6 +254,7 @@ export default function FilterSidebar({ filters, onFilterChange, onApply, onClea
         </div>
       </div>
 
+      {/* Furnishing */}
       <div className="filter-section">
         <label className="filter-label">Furnishing</label>
         <div className="checkbox-list">
@@ -179,6 +280,7 @@ export default function FilterSidebar({ filters, onFilterChange, onApply, onClea
         </div>
       </div>
 
+      {/* Food Preference */}
       <div className="filter-section">
         <label className="filter-label">Food Preference</label>
         <div className="checkbox-list">
@@ -204,7 +306,7 @@ export default function FilterSidebar({ filters, onFilterChange, onApply, onClea
         </div>
       </div>
 
-      <button className="btn btn-primary w-full" onClick={onApply}>
+      <button className="btn btn-primary w-full" onClick={handleApply}>
         Apply Filters
       </button>
     </aside>

@@ -7,7 +7,7 @@ export interface IUser extends Document {
   email?: string;
   phone: string;
   passwordHash?: string;
-  gender?: "Male" | "Female";
+  gender?: "Male" | "Female" | "Other";
   aadhaarEncrypted?: Buffer;
   aadhaarHash?: Buffer;
   permanentAddress?: string;
@@ -33,7 +33,7 @@ const userSchema = new Schema<IUser>(
     email: { type: String, trim: true, lowercase: true },
     phone: { type: String, required: true, trim: true },
     passwordHash: { type: String },
-    gender: { type: String, enum: ["Male", "Female"] },
+    gender: { type: String, enum: ["Male", "Female", "Other"] },
     aadhaarEncrypted: { type: Buffer },
     aadhaarHash: { type: Buffer },
     permanentAddress: { type: String, trim: true },

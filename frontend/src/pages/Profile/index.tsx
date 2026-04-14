@@ -14,7 +14,7 @@ type Profile = {
   aadhaar: string | null;
   phone: string | null;
   photo: string | null;
-  gender: "Male" | "Female" | null;
+  gender: "Male" | "Female" | "Other" | null;
 };
 
 type ProfilePayload = {
@@ -24,7 +24,7 @@ type ProfilePayload = {
   aadhaar: string;
   phone: string;
   photo: string;
-  gender: "Male" | "Female" | "";
+  gender: "Male" | "Female" | "Other" | "";
 };
 
 const emptyPayload: ProfilePayload = {
@@ -132,6 +132,11 @@ export default function ProfilePage() {
         method: "POST",
         body: formData,
       });
+      // Persist photo URL to profile immediately
+      await apiFetch("/api/auth/profile", {
+        method: "PUT",
+        body: JSON.stringify({ photo: data.url }),
+      });
       setForm((prev) => ({ ...prev, photo: data.url }));
       void refreshSession();
       showToast("Photo uploaded successfully", "success");
@@ -235,13 +240,12 @@ export default function ProfilePage() {
             </div>
 
             <div className="form-group">
-              <label>Email <span style={{ color: "var(--text-muted)" }}>(read only)</span></label>
+              <label>Email</label>
               <input
                 type="email"
                 className="input-style"
                 value={form.email}
-                readOnly
-                disabled
+                onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
                 placeholder="you@example.com"
               />
             </div>
@@ -254,13 +258,14 @@ export default function ProfilePage() {
                 onChange={(e) =>
                   setForm((prev) => ({
                     ...prev,
-                    gender: e.target.value as "Male" | "Female" | "",
+                    gender: e.target.value as "Male" | "Female" | "Other" | "",
                   }))
                 }
               >
                 <option value="">Select gender</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
+                <option value="Other">Other</option>
               </select>
             </div>
 
@@ -276,7 +281,7 @@ export default function ProfilePage() {
                     aadhaar: e.target.value.replace(/\D/g, "").slice(0, 12),
                   }))
                 }
-                placeholder={aadhaarLocked ? "Aadhaar locked after verification" : "12-digit Aadhaar number"}
+                placeholder={aadhaarLocked ? "" : "12-digit Aadhaar number"}
                 inputMode="numeric"
                 maxLength={12}
                 disabled={aadhaarLocked}

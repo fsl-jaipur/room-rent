@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { apiFetch, clearStoredToken } from "../lib/api";
 
 interface User {
@@ -24,7 +24,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refreshSession = async () => {
+  const refreshSession = useCallback(async () => {
     try {
       const data = await apiFetch<{ user: User }>("/api/auth/me", {
         method: "GET",
@@ -33,13 +33,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       setUser(null);
     }
-  };
+  }, []);
 
   useEffect(() => {
     refreshSession().finally(() => setLoading(false));
   }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await apiFetch<{ message: string }>("/api/auth/logout", {
         method: "POST",
@@ -50,7 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearStoredToken();
       setUser(null);
     }
-  };
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, loading, setUser, refreshSession, logout }}>

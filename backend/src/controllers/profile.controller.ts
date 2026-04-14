@@ -40,7 +40,16 @@ const getProfileByUserId = async (userId: string) => {
     fullName: user.fullName ?? null,
     email: user.email ?? null,
     location: user.permanentAddress ?? null,
-    aadhaar: null, // Never expose aadhaar in profile response
+    aadhaar: (() => {
+      const raw = user.aadhaarEncrypted as unknown;
+      if (!raw) return null;
+      // Mongoose lean() returns BSON Binary, not a Node.js Buffer
+      if (Buffer.isBuffer(raw)) return (raw as Buffer).toString('utf8') || null;
+      // BSON Binary: has .buffer (Uint8Array) property
+      const bsonBuf = (raw as { buffer?: Uint8Array }).buffer;
+      if (bsonBuf) return Buffer.from(bsonBuf).toString('utf8') || null;
+      return null;
+    })(),
     phone: user.phone ?? null,
     photo: user.photoUrl ?? null,
     gender: user.gender ?? null,
@@ -62,15 +71,10 @@ const saveProfile = async (
     updates.fullName = fullName;
   }
 
-  // Email (immutable once set)
+  // Email
   const email = normalizeEmail(trimStringOrNull(payload.email));
   if (email !== null) {
-    const existingEmail = normalizeEmail(user.email ?? null);
-    if (existingEmail === null) {
-      updates.email = email;
-    } else if (email !== existingEmail) {
-      throw new Error("IMMUTABLE_EMAIL");
-    }
+    updates.email = email;
   }
 
   // Location / Address
@@ -114,10 +118,11 @@ const saveProfile = async (
   const gender = trimStringOrNull(payload.gender);
   if (hasOwn(payload as object, "gender") && gender !== null) {
     const normalizedGender = gender.toLowerCase();
-    if (normalizedGender !== "male" && normalizedGender !== "female") {
+    if (normalizedGender !== "male" && normalizedGender !== "female" && normalizedGender !== "other") {
       throw new Error("VALIDATION_GENDER");
     }
-    updates.gender = normalizedGender === "male" ? "Male" : "Female";
+    const genderMap: Record<string, "Male" | "Female" | "Other"> = { male: "Male", female: "Female", other: "Other" };
+    updates.gender = genderMap[normalizedGender];
   }
 
   if (Object.keys(updates).length === 0) {
@@ -162,11 +167,7 @@ export const createProfile = async (req: Request, res: Response): Promise<void> 
       return;
     }
     if (error instanceof Error && error.message === "VALIDATION_GENDER") {
-      res.status(400).json({ error: "Gender must be Male or Female" });
-      return;
-    }
-    if (error instanceof Error && error.message === "IMMUTABLE_EMAIL") {
-      res.status(400).json({ error: "Email cannot be changed" });
+      res.status(400).json({ error: "Gender must be Male, Female, or Other" });
       return;
     }
     if (error instanceof Error && error.message === "IMMUTABLE_AADHAAR") {
@@ -198,11 +199,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       return;
     }
     if (error instanceof Error && error.message === "VALIDATION_GENDER") {
-      res.status(400).json({ error: "Gender must be Male or Female" });
-      return;
-    }
-    if (error instanceof Error && error.message === "IMMUTABLE_EMAIL") {
-      res.status(400).json({ error: "Email cannot be changed" });
+      res.status(400).json({ error: "Gender must be Male, Female, or Other" });
       return;
     }
     if (error instanceof Error && error.message === "IMMUTABLE_AADHAAR") {

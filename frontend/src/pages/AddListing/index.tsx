@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Send, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, Send, CheckCircle2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, ApiError } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
@@ -55,8 +55,9 @@ interface RoomDetails {
   singleBedCount: number | '';
   doubleBedCount: number | '';
   rentTiers: { occupants: number; rent: number | '' }[];
+  securityDepositPreset: '1month' | '2months' | '4months' | '6months' | 'custom' | '';
 }
-type RoomPayload = Omit<RoomDetails, 'id' | 'rentTiers'> & { rentTiers: { occupants: number; rent: number }[] };
+type RoomPayload = Omit<RoomDetails, 'id' | 'rentTiers' | 'securityDepositPreset'> & { rentTiers: { occupants: number; rent: number }[] };
 
 type UploadSlot = 'exterior' | `room-${number}-${number}`;
 const IMAGES_PER_ROOM = 3;
@@ -79,6 +80,7 @@ const createEmptyRoom = (): RoomDetails => ({
   singleBedCount: '',
   doubleBedCount: '',
   rentTiers: [],
+  securityDepositPreset: '',
 });
 
 export default function AddListing() {
@@ -270,6 +272,24 @@ export default function AddListing() {
     event.target.value = '';
   };
 
+  const handleRemoveRoomPhoto = (roomIndex: number, imageIndex: number) => {
+    setRoomPhotoUrls((prev) =>
+      prev.map((roomImages, i) =>
+        i === roomIndex ? roomImages.map((url, j) => (j === imageIndex ? '' : url)) : roomImages
+      )
+    );
+    setRoomPhotoFiles((prev) =>
+      prev.map((roomImages, i) =>
+        i === roomIndex ? roomImages.map((file, j) => (j === imageIndex ? null : file)) : roomImages
+      )
+    );
+  };
+
+  const handleRemoveExteriorPhoto = () => {
+    setExteriorPhotoUrl('');
+    setExteriorPhotoFile(null);
+  };
+
   const handleSubmit = async () => {
     const finalAddress = address.trim() || composedAddress.trim();
 
@@ -328,8 +348,12 @@ export default function AddListing() {
           return;
         }
       }
-      if (room.securityDeposit === '') {
-        setErrorMsg(`Room ${roomIndex + 1}: Security Deposit is required`);
+      if (room.securityDepositPreset === '') {
+        setErrorMsg(`Room ${roomIndex + 1}: Security Deposit type is required`);
+        return;
+      }
+      if (room.securityDepositPreset === 'custom' && room.securityDeposit === '') {
+        setErrorMsg(`Room ${roomIndex + 1}: Please enter a custom security deposit amount`);
         return;
       }
       if (!room.availableFrom.trim()) {
@@ -470,7 +494,7 @@ export default function AddListing() {
           <div className="flex-col location-form">
             <div className="location-fields-grid">
               <div className="form-group">
-                <label>House No.</label>
+                <label>House No. <span style={{ color: 'red' }}>*</span></label>
                 <input
                   className="input-style"
                   placeholder="e.g. 24/7 or A123 or 123B"
@@ -489,7 +513,7 @@ export default function AddListing() {
                 />
               </div>
               <div className="form-group">
-                <label>Area</label>
+                <label>Area <span style={{ color: 'red' }}>*</span></label>
                 <select
                   className="input-style"
                   value={area}
@@ -513,7 +537,7 @@ export default function AddListing() {
               </div>
               </div>
               <div className="form-group">
-                <label>Colony</label>
+                <label>Colony <span style={{ color: 'red' }}>*</span></label>
                 <select
                   className="input-style"
                   value={colony}
@@ -522,7 +546,7 @@ export default function AddListing() {
                   required
                 >
                   <option value="" disabled>{area ? 'Select colony' : 'Select area first'}</option>
-                  {colonyOptions.map((option) => (
+                  {colonyOptions.filter((c) => /[a-zA-Z]/.test(c)).map((option) => (
                     <option key={option} value={option}>
                       {option}
                     </option>
@@ -530,7 +554,7 @@ export default function AddListing() {
                 </select>
               </div>
               <div className="form-group">
-                <label>Pincode</label>
+                <label>Pincode <span style={{ color: 'red' }}>*</span></label>
                 <input
                   type="text"
                   className="input-style"
@@ -586,7 +610,7 @@ export default function AddListing() {
                 <div className="room-grid">
 
                   <div className="form-group">
-                    <label>Property Type</label>
+                    <label>Property Type <span style={{ color: 'red' }}>*</span></label>
                     <select
                       className="input-style"
                       value={room.propertyTypeId}
@@ -600,7 +624,7 @@ export default function AddListing() {
                   </div>
                   
                   <div className="form-group">
-                    <label>Floor Level</label>
+                    <label>Floor Level <span style={{ color: 'red' }}>*</span></label>
                     <select 
                       className="input-style"
                       value={room.floorLevelId}
@@ -616,7 +640,7 @@ export default function AddListing() {
                   </div>
 
                   <div className="form-group">
-                    <label>Max Occupants</label>
+                    <label>Max Occupants <span style={{ color: 'red' }}>*</span></label>
                     <select 
                       className="input-style"
                       value={room.maxOccupants}
@@ -643,14 +667,24 @@ export default function AddListing() {
                   </div>
 
                   <div className="form-group">
-                    <label>Monthly Rent (₹) <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '0.85em' }}>for {room.maxOccupants || 'max'} occupant{Number(room.maxOccupants) > 1 ? 's' : ''}</span></label>
+                    <label>Monthly Rent (₹) <span style={{ color: 'red' }}>*</span> <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '0.85em' }}>for {room.maxOccupants || 'max'} occupant{Number(room.maxOccupants) > 1 ? 's' : ''}</span></label>
                     <input 
                       type="text"
                       className="input-style"
                       value={room.monthlyRent}
-                      onChange={(e) =>
-                        updateRoom(room.id, 'monthlyRent', toOptionalNumber(e.target.value))
-                      }
+                      onChange={(e) => {
+                        const newRent = toOptionalNumber(e.target.value);
+                        const rentNum = Number(newRent) || 0;
+                        setRooms((prev) => prev.map((r) => {
+                          if (r.id !== room.id) return r;
+                          let deposit: number | '' = r.securityDeposit;
+                          if (r.securityDepositPreset === '1month') deposit = rentNum;
+                          else if (r.securityDepositPreset === '2months') deposit = rentNum * 2;
+                          else if (r.securityDepositPreset === '4months') deposit = rentNum * 4;
+                          else if (r.securityDepositPreset === '6months') deposit = rentNum * 6;
+                          return { ...r, monthlyRent: newRent, securityDeposit: deposit };
+                        }));
+                      }}
                     />
                   </div>
 
@@ -677,7 +711,7 @@ export default function AddListing() {
                   ))}
 
                   <div className="form-group">
-                    <label>Furnishing</label>
+                    <label>Furnishing <span style={{ color: 'red' }}>*</span></label>
                     <select 
                       className="input-style"
                       value={room.furnishingTypeId}
@@ -692,7 +726,7 @@ export default function AddListing() {
 
                   {room.propertyTypeId !== 2 && (
                     <div className="form-group">
-                      <label>Food Preference</label>
+                      <label>Food Preference <span style={{ color: 'red' }}>*</span></label>
                       <select 
                         className="input-style"
                         value={room.foodPreferenceId}
@@ -708,7 +742,7 @@ export default function AddListing() {
 
                   {room.propertyTypeId !== 2 && (
                     <div className="form-group">
-                      <label>Food Level</label>
+                      <label>Food Level <span style={{ color: 'red' }}>*</span></label>
                       <select
                         className="input-style"
                         value={room.foodLevelId}
@@ -723,7 +757,7 @@ export default function AddListing() {
                   )}
 
                   <div className="form-group">
-                    <label>Bed Type</label>
+                    <label>Bed Type <span style={{ color: 'red' }}>*</span></label>
                     <select
                       className="input-style"
                       value={room.bedType}
@@ -758,7 +792,7 @@ export default function AddListing() {
 
                   {(room.bedType === 'Single' || room.bedType === 'Mixed') && (
                     <div className="form-group">
-                      <label>Single Bed Count</label>
+                      <label>Single Bed Count <span style={{ color: 'red' }}>*</span></label>
                       <input
                         type="text"
                         className="input-style"
@@ -777,7 +811,7 @@ export default function AddListing() {
 
                   {(room.bedType === 'Double' || room.bedType === 'Mixed') && (
                     <div className="form-group">
-                      <label>Double Bed Count</label>
+                      <label>Double Bed Count <span style={{ color: 'red' }}>*</span></label>
                       <input
                         type="text"
                         className="input-style"
@@ -795,7 +829,31 @@ export default function AddListing() {
                   )}
 
                   <div className="form-group">
-                    <label>Available From (Date)</label>
+                    <label>Smoking Allowed</label>
+                    <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.25rem' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontWeight: 400 }}>
+                        <input
+                          type="radio"
+                          name={`smoking-${room.id}`}
+                          checked={room.allowSmoking === true}
+                          onChange={() => updateRoom(room.id, 'allowSmoking', true)}
+                        />
+                        Yes
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontWeight: 400 }}>
+                        <input
+                          type="radio"
+                          name={`smoking-${room.id}`}
+                          checked={room.allowSmoking === false}
+                          onChange={() => updateRoom(room.id, 'allowSmoking', false)}
+                        />
+                        No
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Available From <span style={{ color: 'red' }}>*</span></label>
                     <input 
                       type="date"
                       className="input-style"
@@ -805,20 +863,52 @@ export default function AddListing() {
                   </div>
 
                   <div className="form-group">
-                    <label>Security Deposit (₹)</label>
-                    <input
-                      type="text"
+                    <label>Security Deposit (₹) <span style={{ color: 'red' }}>*</span></label>
+                    <select
                       className="input-style"
-                      placeholder='Enter 0 for no security deposit'
-                      value={room.securityDeposit}
-                      onChange={(e) =>
-                        updateRoom(room.id, 'securityDeposit', toOptionalNumber(e.target.value))
-                      }
-                    />
+                      value={room.securityDepositPreset}
+                      onChange={(e) => {
+                        const preset = e.target.value as RoomDetails['securityDepositPreset'];
+                        const rentNum = Number(room.monthlyRent) || 0;
+                        let deposit: number | '' = '';
+                        if (preset === '1month') deposit = rentNum;
+                        else if (preset === '2months') deposit = rentNum * 2;
+                        else if (preset === '4months') deposit = rentNum * 4;
+                        else if (preset === '6months') deposit = rentNum * 6;
+                        else if (preset === 'custom') deposit = '';
+                        setRooms((prev) => prev.map((r) =>
+                          r.id === room.id ? { ...r, securityDepositPreset: preset, securityDeposit: deposit } : r
+                        ));
+                      }}
+                    >
+                      <option value="" disabled>Select deposit type</option>
+                      <option value="1month">1 Month Rent Advance</option>
+                      <option value="2months">2 Months Rent Advance</option>
+                      <option value="4months">4 Months Rent Advance</option>
+                      <option value="6months">6 Months Rent Advance</option>
+                      <option value="custom">Custom Amount</option>
+                    </select>
+                    {room.securityDepositPreset !== '' && room.securityDepositPreset !== 'custom' && (
+                      <p style={{ marginTop: '0.35rem', fontSize: '0.85em', color: 'var(--text-muted)' }}>
+                        = ₹{Number(room.securityDeposit).toLocaleString('en-IN')}
+                      </p>
+                    )}
+                    {room.securityDepositPreset === 'custom' && (
+                      <input
+                        type="text"
+                        className="input-style"
+                        style={{ marginTop: '0.5rem' }}
+                        placeholder="Enter custom deposit amount"
+                        value={room.securityDeposit}
+                        onChange={(e) =>
+                          updateRoom(room.id, 'securityDeposit', toOptionalNumber(e.target.value))
+                        }
+                      />
+                    )}
                   </div>
 
                   <div className="form-group room-span-full">
-                    <label>Description</label>
+                    <label>Description <span style={{ color: 'red' }}>*</span></label>
                     <textarea
                       className="input-style"
                       rows={3}
@@ -829,7 +919,7 @@ export default function AddListing() {
                   </div>
 
                   <div className="form-group room-span-full">
-                    <label>Room Images (up to 3)</label>
+                    <label>Room Images <span style={{ color: 'red' }}>*</span> <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '0.85em' }}>(up to 3, at least 1 required)</span></label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
                       {Array.from({ length: IMAGES_PER_ROOM }, (_, imageIndex) => {
                         const slot = `room-${index}-${imageIndex}` as UploadSlot;
@@ -862,11 +952,36 @@ export default function AddListing() {
                               </label>
                             </div>
                             {imageUrl.trim() && (
-                              <img
-                                src={imageUrl}
-                                alt={`Room ${index + 1} image ${imageIndex + 1} preview`}
-                                className="image-preview"
-                              />
+                              <div style={{ position: 'relative', display: 'inline-block' }}>
+                                <img
+                                  src={imageUrl}
+                                  alt={`Room ${index + 1} image ${imageIndex + 1} preview`}
+                                  className="image-preview"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveRoomPhoto(index, imageIndex)}
+                                  style={{
+                                    position: 'absolute',
+                                    top: '0.4rem',
+                                    right: '0.4rem',
+                                    background: 'rgba(0,0,0,0.55)',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: '50%',
+                                    width: '1.6rem',
+                                    height: '1.6rem',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: 0,
+                                  }}
+                                  aria-label="Remove image"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
                             )}
                           </div>
                         );
@@ -874,26 +989,14 @@ export default function AddListing() {
                     </div>
                   </div>
 
-                  <div className="form-group room-span-full">
-                    <label className="checkbox-group">
-                      <input 
-                        type="checkbox" 
-                        checked={room.allowSmoking}
-                        onChange={(e) => updateRoom(room.id, 'allowSmoking', e.target.checked)}
-                      />
-                      Smoking Allowed
-                    </label>
-                  </div>
                 </div>
               </div>
             ))}
 
             <div className="glass-card">
-              <h3 className="mb-4">Property Images</h3>
-              <p className="mb-4">Add an exterior image. Room images are attached inside each room card.</p>
               <div className="flex-col">
                 <div className="form-group">
-                  <label>Exterior Image</label>
+                  <label>Exterior Image <span style={{ color: 'red' }}>*</span></label>
                   <div className="flex-row image-upload-actions">
                     <label className="btn btn-outline image-upload-btn">
                       Upload File
@@ -904,14 +1007,38 @@ export default function AddListing() {
                         className="hidden-input"
                       />
                     </label>
-                   
                   </div>
                   {exteriorPhotoUrl.trim() && (
-                    <img
-                      src={exteriorPhotoUrl}
-                      alt="Exterior preview"
-                      className="image-preview"
-                    />
+                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                      <img
+                        src={exteriorPhotoUrl}
+                        alt="Exterior preview"
+                        className="image-preview"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRemoveExteriorPhoto}
+                        style={{
+                          position: 'absolute',
+                          top: '0.4rem',
+                          right: '0.4rem',
+                          background: 'rgba(0,0,0,0.55)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '1.6rem',
+                          height: '1.6rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0,
+                        }}
+                        aria-label="Remove exterior image"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

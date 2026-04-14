@@ -34,6 +34,7 @@ type ListingsResponse = {
 
 type FilterState = {
   search: string;
+  city: string;
   minRent: number;
   maxRent: number;
   maxOccupants: number[];
@@ -41,7 +42,7 @@ type FilterState = {
   furnishingTypeId: number[];
   foodPreferenceId: number[];
   propertyTypeId: number[];
-  gender: ("Male" | "Female")[];
+  gender: ("Male" | "Female" | "Other")[];
   allowSmoking: boolean[];
   sortBy: "newest" | "rent_asc" | "rent_desc";
 };
@@ -51,6 +52,7 @@ const RENT_MAX = 50000;
 
 const defaultFilters: FilterState = {
   search: "",
+  city: "",
   minRent: RENT_MIN,
   maxRent: RENT_MAX,
   maxOccupants: [],
@@ -78,12 +80,16 @@ const parseBooleanList = (value: string | null): boolean[] =>
     .filter((v) => v === "true" || v === "false")
     .map((v) => v === "true");
 
-const parseGenderList = (value: string | null): ("Male" | "Female")[] =>
+const parseGenderList = (value: string | null): ("Male" | "Female" | "Other")[] =>
   (value || "")
     .split(",")
     .map((v) => v.trim().toLowerCase())
-    .filter((v) => v === "male" || v === "female")
-    .map((v) => (v === "male" ? "Male" : "Female"))
+    .filter((v) => v === "male" || v === "female" || v === "other")
+    .map((v): "Male" | "Female" | "Other" => {
+      if (v === "male") return "Male";
+      if (v === "female") return "Female";
+      return "Other";
+    })
     .slice(0, 1);
 
 export default function ListingsPage() {
@@ -101,6 +107,7 @@ export default function ListingsPage() {
   useEffect(() => {
     setFilters({
       search: searchParams.get("search") || "",
+      city: searchParams.get("city") || "",
       minRent: Number(searchParams.get("minRent")) || defaultFilters.minRent,
       maxRent: Number(searchParams.get("maxRent")) || defaultFilters.maxRent,
       maxOccupants: parseNumberList(searchParams.get("maxOccupants")).slice(0, 1),
@@ -124,6 +131,7 @@ export default function ListingsPage() {
     params.set("sortBy", filters.sortBy);
 
     if (filters.search.trim()) params.set("search", filters.search.trim());
+    if (filters.city.trim()) params.set("city", filters.city.trim());
     if (filters.minRent > RENT_MIN) params.set("minRent", String(filters.minRent));
     if (filters.maxRent < RENT_MAX) params.set("maxRent", String(filters.maxRent));
     if (filters.maxOccupants.length) params.set("maxOccupants", filters.maxOccupants.join(","));
@@ -172,20 +180,22 @@ export default function ListingsPage() {
     loadListings();
   }, [queryPath, logout, navigate]);
 
-  const applyFilters = () => {
+  const applyFilters = (current: FilterState = filters) => {
+    setFilters(current);
     const next = new URLSearchParams();
     next.set("page", "1");
-    next.set("sortBy", filters.sortBy);
-    if (filters.search.trim()) next.set("search", filters.search.trim());
-    if (filters.minRent > RENT_MIN) next.set("minRent", String(filters.minRent));
-    if (filters.maxRent < RENT_MAX) next.set("maxRent", String(filters.maxRent));
-    if (filters.maxOccupants.length) next.set("maxOccupants", filters.maxOccupants.join(","));
-    if (filters.floorLevelId.length) next.set("floorLevelId", filters.floorLevelId.join(","));
-    if (filters.furnishingTypeId.length) next.set("furnishingTypeId", filters.furnishingTypeId.join(","));
-    if (filters.foodPreferenceId.length) next.set("foodPreferenceId", filters.foodPreferenceId.join(","));
-    if (filters.propertyTypeId.length) next.set("propertyTypeId", filters.propertyTypeId.join(","));
-    if (filters.gender.length) next.set("gender", filters.gender.join(","));
-    if (filters.allowSmoking.length) next.set("allowSmoking", filters.allowSmoking.map(String).join(","));
+    next.set("sortBy", current.sortBy);
+    if (current.search.trim()) next.set("search", current.search.trim());
+    if (current.city.trim()) next.set("city", current.city.trim());
+    if (current.minRent > RENT_MIN) next.set("minRent", String(current.minRent));
+    if (current.maxRent < RENT_MAX) next.set("maxRent", String(current.maxRent));
+    if (current.maxOccupants.length) next.set("maxOccupants", current.maxOccupants.join(","));
+    if (current.floorLevelId.length) next.set("floorLevelId", current.floorLevelId.join(","));
+    if (current.furnishingTypeId.length) next.set("furnishingTypeId", current.furnishingTypeId.join(","));
+    if (current.foodPreferenceId.length) next.set("foodPreferenceId", current.foodPreferenceId.join(","));
+    if (current.propertyTypeId.length) next.set("propertyTypeId", current.propertyTypeId.join(","));
+    if (current.gender.length) next.set("gender", current.gender.join(","));
+    if (current.allowSmoking.length) next.set("allowSmoking", current.allowSmoking.map(String).join(","));
     setSearchParams(next);
   };
 
@@ -218,7 +228,7 @@ export default function ListingsPage() {
           <FilterSidebar
             filters={filters}
             onFilterChange={setFilters}
-            onApply={applyFilters}
+            onApply={(f) => applyFilters(f)}
             onClear={clearFilters}
           />
 
