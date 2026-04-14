@@ -290,16 +290,18 @@ export default function ProfilePage() {
               <input
                 type="text"
                 className="input-style"
-                value={form.aadhaar}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    aadhaar: e.target.value.replace(/\D/g, "").slice(0, 12),
-                  }))
+                value={
+                  aadhaarLocked
+                    ? form.aadhaar.replace(/(\d{4})(\d{4})(\d{4})/, '$1-$2-$3')
+                    : form.aadhaar.replace(/(\d{4})(?=\d)/g, '$1-')
                 }
-                placeholder={aadhaarLocked ? "" : "12-digit Aadhaar number"}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 12);
+                  setForm((prev) => ({ ...prev, aadhaar: digits }));
+                }}
+                placeholder={aadhaarLocked ? "" : "XXXX-XXXX-XXXX"}
                 inputMode="numeric"
-                maxLength={12}
+                maxLength={14}
                 disabled={aadhaarLocked}
               />
               {!aadhaarLocked && (

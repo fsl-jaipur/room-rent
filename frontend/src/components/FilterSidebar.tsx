@@ -1,5 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react';
-import { MapPin, Building2 } from 'lucide-react';
+﻿import { useEffect, useRef } from 'react';
 
 type FilterState = {
   search: string;
@@ -40,64 +39,14 @@ const occupantOptions = [
 ];
 
 export default function FilterSidebar({ filters, onFilterChange, onApply, onClear }: FilterSidebarProps) {
-  const [localSearch, setLocalSearch] = useState(filters.search);
-  const [localCity, setLocalCity] = useState(filters.city);
-  const [prevFilterSearch, setPrevFilterSearch] = useState(filters.search);
-  const [prevFilterCity, setPrevFilterCity] = useState(filters.city);
-  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSearch = useRef(filters.search);
-  const pendingCity = useRef(filters.city);
   const latestFilters = useRef(filters);
 
   // Always keep latest filters ref current
   useEffect(() => { latestFilters.current = filters; });
 
-  // Sync pending refs with parent resets (ref mutations in effects are fine)
-  useEffect(() => { pendingSearch.current = filters.search; }, [filters.search]);
-  useEffect(() => { pendingCity.current = filters.city; }, [filters.city]);
-
-  // Derived local state from parent — mid-render pattern (no effects needed for setState)
-  if (prevFilterSearch !== filters.search) {
-    setPrevFilterSearch(filters.search);
-    setLocalSearch(filters.search);
-  }
-  if (prevFilterCity !== filters.city) {
-    setPrevFilterCity(filters.city);
-    setLocalCity(filters.city);
-  }
-
-  const fireDebounced = () => {
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    debounceTimer.current = setTimeout(() => {
-      onFilterChange({
-        ...latestFilters.current,
-        search: pendingSearch.current,
-        city: pendingCity.current,
-      });
-    }, 500);
-  };
-
-  const handleSearchChange = (value: string) => {
-    setLocalSearch(value);
-    pendingSearch.current = value;
-    fireDebounced();
-  };
-
-  const handleCityChange = (value: string) => {
-    setLocalCity(value);
-    pendingCity.current = value;
-    fireDebounced();
-  };
-
   const handleApply = () => {
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    const flushed: FilterState = {
-      ...latestFilters.current,
-      search: pendingSearch.current,
-      city: pendingCity.current,
-    };
-    onFilterChange(flushed);
-    onApply(flushed);
+    onFilterChange(latestFilters.current);
+    onApply(latestFilters.current);
   };
 
   return (
@@ -105,34 +54,6 @@ export default function FilterSidebar({ filters, onFilterChange, onApply, onClea
       <div className="filter-header">
         <h3>Filters</h3>
         <button className="btn-text" onClick={onClear}>Clear all</button>
-      </div>
-
-      {/* Search by area / colony */}
-      <div className="filter-section">
-        <label className="filter-label">
-          <MapPin size={14} style={{ display: 'inline', marginRight: '0.3rem' }} />
-          Search by Area / Colony
-        </label>
-        <input
-          className="input-style"
-          value={localSearch}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          placeholder="e.g. Malviya Nagar, Sector 5..."
-        />
-      </div>
-
-      {/* Search by city */}
-      <div className="filter-section">
-        <label className="filter-label">
-          <Building2 size={14} style={{ display: 'inline', marginRight: '0.3rem' }} />
-          Search by City
-        </label>
-        <input
-          className="input-style"
-          value={localCity}
-          onChange={(e) => handleCityChange(e.target.value)}
-          placeholder="e.g. Jaipur"
-        />
       </div>
 
       {/* Budget sliders with labels */}
@@ -178,8 +99,6 @@ export default function FilterSidebar({ filters, onFilterChange, onApply, onClea
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.73rem', color: 'var(--text-muted)' }}>
-          <span>{'₹'}{RENT_MIN.toLocaleString('en-IN')}</span>
-          <span>{'₹'}{RENT_MAX.toLocaleString('en-IN')}</span>
         </div>
       </div>
 
