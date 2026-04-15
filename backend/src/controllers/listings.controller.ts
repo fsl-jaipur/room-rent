@@ -746,3 +746,34 @@ export const getMyListings = async (
     next(error);
   }
 };
+
+export const deleteListing = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const landlordId = (req as any).user?.id;
+    if (!landlordId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    let { listingId } = req.params;
+    if (Array.isArray(listingId)) listingId = listingId[0];
+    if (!listingId) {
+      res.status(400).json({ error: "listingId is required" });
+      return;
+    }
+
+    const deleted = await ListingsService.deleteListingById(listingId, landlordId);
+    if (!deleted) {
+      res.status(404).json({ error: "Listing not found or not owned by you" });
+      return;
+    }
+
+    res.status(200).json({ message: "Listing deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
+};

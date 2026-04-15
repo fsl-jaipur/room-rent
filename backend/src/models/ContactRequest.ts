@@ -6,6 +6,7 @@ export interface IContactRequest extends Document {
   landlordId: mongoose.Types.ObjectId;
   message?: string;
   status: "Pending" | "Accepted" | "Rejected";
+  isConnected: boolean;
   createdAt: Date;
   respondedAt?: Date;
 }
@@ -21,6 +22,7 @@ const contactRequestSchema = new Schema<IContactRequest>(
       enum: ["Pending", "Accepted", "Rejected"],
       default: "Pending",
     },
+    isConnected: { type: Boolean, default: false },
     respondedAt: { type: Date },
   },
   { timestamps: { createdAt: true, updatedAt: false } }

@@ -3,6 +3,9 @@ import { Router } from "express";
 import listingsRoutes from "./listings.routes";
 import authRoutes from "./auth.routes";
 import uploadRoutes from "./upload.routes";
+import favoritesRoutes from "./favorites.routes";
+import testimonialsRoutes from "./testimonials.routes";
+import connectionsRoutes from "./connections.routes";
 
 const router = Router();
 
@@ -19,5 +22,8 @@ router.get("/health", (_req, res) => {
 router.use("/auth", authRoutes);
 router.use("/listings", listingsRoutes);
 router.use("/uploads", uploadRoutes);
+router.use("/favorites", favoritesRoutes);
+router.use("/testimonials", testimonialsRoutes);
+router.use("/connections", connectionsRoutes);
 
 export default router;

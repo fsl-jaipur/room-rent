@@ -15,6 +15,8 @@ type UserGender = "Male" | "Female" | "Other";
 const googleClient = new OAuth2Client();
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 const RESET_OTP_TTL_MINUTES = 10;
+const OTP_RESEND_LIMIT = 3;
+const OTP_RESEND_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
@@ -319,6 +321,32 @@ export const forgotPassword = async (
     }
 
     const otpCode = `${Math.floor(100000 + Math.random() * 900000)}`;
+
+    // ── OTP resend rate limit ──────────────────────────────────────────
+    const windowStart = user.otpResendWindowStart;
+    const windowExpired =
+      !windowStart ||
+      Date.now() - windowStart.getTime() > OTP_RESEND_WINDOW_MS;
+
+    if (windowExpired) {
+      // Start a fresh 24-hour window
+      await User.updateOne(
+        { _id: user._id },
+        { otpResendCount: 1, otpResendWindowStart: new Date() }
+      );
+    } else if (user.otpResendCount >= OTP_RESEND_LIMIT) {
+      const windowEndsAt = new Date(windowStart!.getTime() + OTP_RESEND_WINDOW_MS);
+      const hoursLeft = Math.ceil(
+        (windowEndsAt.getTime() - Date.now()) / (60 * 60 * 1000)
+      );
+      res.status(429).json({
+        error: `You have reached the maximum OTP request limit (${OTP_RESEND_LIMIT} requests). Please try again in ${hoursLeft} hour${hoursLeft !== 1 ? "s" : ""}.`,
+      });
+      return;
+    } else {
+      await User.updateOne({ _id: user._id }, { $inc: { otpResendCount: 1 } });
+    }
+    // ──────────────────────────────────────────────────────────────────
     const resetToken = crypto.randomBytes(32).toString("hex");
     const otpHash = sha256Hex(otpCode);
     const tokenHash = sha256Hex(resetToken);
@@ -362,13 +390,18 @@ export const forgotPassword = async (
     const sendResult = await resend.emails.send({
       from: env.RESEND_FROM_EMAIL,
       to: user.email,
-      subject: "Reset Your Password",
+      subject: "Reset Your Roombaazi Password",
       html: buildResetPasswordEmailHtml(otpCode, resetLink),
     });
 
     if (sendResult.error) {
-      console.error("Resend send failed:", sendResult.error);
-      res.status(500).json({ error: "Unable to send reset email right now" });
+      console.error("Resend send failed:", JSON.stringify(sendResult.error));
+      // Roll back the resend count increment since the email didn't go out
+      await User.updateOne(
+        { _id: user._id },
+        { $inc: { otpResendCount: -1 } }
+      );
+      res.status(500).json({ error: "Unable to send reset email right now. Please try again later." });
       return;
     }
 
@@ -457,6 +490,12 @@ export const resetPassword = async (
     await PasswordResetRequest.updateMany(
       { userId: user._id, usedAt: null },
       { usedAt: new Date() },
+    );
+
+    // Reset the OTP resend counter so the user can request again if needed
+    await User.updateOne(
+      { _id: user._id },
+      { otpResendCount: 0, otpResendWindowStart: null }
     );
 
     res.status(200).json({ message: "Password reset successful" });

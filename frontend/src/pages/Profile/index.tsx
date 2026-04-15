@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Heart } from "lucide-react";
 import { ApiError, apiFetch } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -37,6 +38,12 @@ const emptyPayload: ProfilePayload = {
   gender: "",
 };
 
+type FavoriteItem = {
+  listingId: string;
+  title: string;
+  coverPhotoUrl: string | null;
+};
+
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { logout, refreshSession } = useAuth();
@@ -48,6 +55,8 @@ export default function ProfilePage() {
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const initialForm = useRef<ProfilePayload>(emptyPayload);
+  const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
+  const [favLoading, setFavLoading] = useState(true);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -85,6 +94,14 @@ export default function ProfilePage() {
   useEffect(() => {
     void loadProfile();
   }, [loadProfile]);
+
+  useEffect(() => {
+    setFavLoading(true);
+    apiFetch<{ items: FavoriteItem[] }>("/api/favorites", { method: "GET" })
+      .then((data) => setFavorites(data.items))
+      .catch(() => setFavorites([]))
+      .finally(() => setFavLoading(false));
+  }, []);
 
 
   const handleSave = async () => {
@@ -346,6 +363,71 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ── Liked Properties ─────────────────────────────── */}
+      <div className="glass-card" style={{ marginTop: "1.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
+          <Heart size={20} fill="currentColor" style={{ color: "#ef4444" }} />
+          <h3 style={{ margin: 0 }}>Liked Properties</h3>
+        </div>
+
+        {favLoading ? (
+          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={`fav-skel-${i}`} style={{ width: 140 }}>
+                <Skeleton style={{ width: 140, height: 100, borderRadius: "8px" }} />
+                <Skeleton style={{ width: "90%", height: 14, marginTop: "0.4rem" }} />
+              </div>
+            ))}
+          </div>
+        ) : favorites.length === 0 ? (
+          <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.9rem" }}>
+            You haven't liked any properties yet.
+          </p>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
+            {favorites.map((fav) => (
+              <div
+                key={fav.listingId}
+                onClick={() => navigate(`/listings/${fav.listingId}`)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigate(`/listings/${fav.listingId}`); }}
+                style={{
+                  width: 140,
+                  cursor: "pointer",
+                  borderRadius: "10px",
+                  overflow: "hidden",
+                  border: "1px solid var(--border-color)",
+                  background: "var(--card-bg)",
+                  transition: "transform 0.15s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-3px)")}
+                onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}
+              >
+                <div style={{ width: "100%", height: 100, overflow: "hidden", background: "var(--hover-bg)" }}>
+                  {fav.coverPhotoUrl ? (
+                    <img
+                      src={fav.coverPhotoUrl}
+                      alt={fav.title}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "0.75rem" }}>
+                      No Image
+                    </div>
+                  )}
+                </div>
+                <div style={{ padding: "0.4rem 0.5rem" }}>
+                  <p style={{ margin: 0, fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {fav.title}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
     </>

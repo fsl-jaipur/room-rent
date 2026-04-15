@@ -423,6 +423,15 @@ export class ListingsService {
     return (result.matchedCount ?? 0) > 0;
   }
 
+  // ─── Soft Delete Listing ──────────────────────────────────
+  static async deleteListingById(listingId: string, landlordId: string): Promise<boolean> {
+    const result = await Listing.updateOne(
+      { _id: listingId, landlordId, isActive: true },
+      { $set: { isActive: false } }
+    );
+    return (result.matchedCount ?? 0) > 0;
+  }
+
   // ─── Get All Listings ─────────────────────────────────────
   static async getAllListings(
     page: number,
@@ -432,7 +441,7 @@ export class ListingsService {
     const offset = (page - 1) * limit;
 
     // Build filter query
-    const query: Record<string, unknown> = { status: "Active" };
+    const query: Record<string, unknown> = { status: "Active", isActive: true };
 
     // Search
     if (filters.search && filters.search.trim()) {

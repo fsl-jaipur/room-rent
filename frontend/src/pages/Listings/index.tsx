@@ -100,9 +100,32 @@ export default function ListingsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [searchParams, setSearchParams] = useSearchParams();
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
+
+  // Load favorite IDs once user is known
+  useEffect(() => {
+    if (!user) return;
+    apiFetch<{ ids: string[] }>("/api/favorites/ids", { method: "GET" })
+      .then((data) => setFavoriteIds(new Set(data.ids)))
+      .catch(() => {/* silently ignore */});
+  }, [user]);
+
+  const handleToggleFavorite = async (listingId: string) => {
+    try {
+      const data = await apiFetch<{ liked: boolean }>(`/api/favorites/${listingId}`, { method: "POST" });
+      setFavoriteIds((prev) => {
+        const next = new Set(prev);
+        if (data.liked) next.add(listingId);
+        else next.delete(listingId);
+        return next;
+      });
+    } catch {
+      // silently ignore
+    }
+  };
 
   useEffect(() => {
     setFilters({
@@ -300,6 +323,8 @@ export default function ListingsPage() {
                       furnishingName={item.furnishingName}
                       foodPreferenceName={item.foodPreferenceName}
                       coverPhotoUrl={item.coverPhotoUrl}
+                      isFavorited={favoriteIds.has(item.listingId)}
+                      onToggleFavorite={handleToggleFavorite}
                     />
                   ))}
             </div>

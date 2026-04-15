@@ -5,18 +5,32 @@ import { useAuth } from "../../context/AuthContext";
 import { apiFetch } from "../../lib/api";
 import brandLogo from "../../assets/Roombaazi Final Logo.png";
 
-const PASSWORD_RULES = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,24}$/;
 const PHONE_RULES = /^\d{10}$/;
 
-function getPasswordError(pw: string): string {
-  if (pw.length === 0) return '';
-  if (pw.length < 8) return 'Password must be at least 8 characters';
-  if (pw.length > 24) return 'Password must be at most 24 characters';
-  if (!/[A-Z]/.test(pw)) return 'Need at least one uppercase letter';
-  if (!/[a-z]/.test(pw)) return 'Need at least one lowercase letter';
-  if (!/\d/.test(pw)) return 'Need at least one number';
-  if (!/[^a-zA-Z0-9]/.test(pw)) return 'Need at least one special character';
-  return '';
+function hasSequenceOrRepeat(pw: string): boolean {
+  for (let i = 0; i <= pw.length - 3; i++) {
+    const a = pw.charCodeAt(i);
+    const b = pw.charCodeAt(i + 1);
+    const c = pw.charCodeAt(i + 2);
+    if (b === a + 1 && c === a + 2) return true; // ascending: 123, abc
+    if (b === a - 1 && c === a - 2) return true; // descending: 321, cba
+    if (a === b && b === c) return true;           // repeated: 000, aaa
+  }
+  return false;
+}
+
+function getPasswordChecks(pw: string) {
+  return {
+    length:    pw.length >= 11 && pw.length <= 15,
+    casing:    /[a-z]/.test(pw) && /[A-Z]/.test(pw),
+    numSpecial: /\d/.test(pw) && /[^a-zA-Z0-9]/.test(pw),
+    noSequence: pw.length > 0 && !hasSequenceOrRepeat(pw),
+  };
+}
+
+function isPasswordStrong(pw: string): boolean {
+  const c = getPasswordChecks(pw);
+  return c.length && c.casing && c.numSpecial && c.noSequence;
 }
 
 export default function Register() {
@@ -34,7 +48,8 @@ export default function Register() {
   const navigate = useNavigate();
   const { refreshSession } = useAuth();
 
-  const passwordError = getPasswordError(password);
+  const passwordChecks = getPasswordChecks(password);
+  const passwordStrong = isPasswordStrong(password);
   const confirmError =
     confirmPassword.length > 0 && password !== confirmPassword
       ? "Passwords do not match"
@@ -52,8 +67,8 @@ export default function Register() {
       setErrorMsg("Phone number must be exactly 10 digits");
       return;
     }
-    if (!PASSWORD_RULES.test(password)) {
-      setErrorMsg(passwordError || "Password does not meet requirements");
+    if (!passwordStrong) {
+      setErrorMsg("Password is not secure and password must be Strong.");
       return;
     }
     if (password !== confirmPassword) {
@@ -182,8 +197,8 @@ export default function Register() {
                     type={showPassword ? "text" : "password"}
                     className="input-style"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value.slice(0, 24))}
-                    placeholder="Min 8 chars, upper, lower, number, special"
+                    onChange={(e) => setPassword(e.target.value.slice(0, 15))}
+                    placeholder="Enter a strong password"
                     required
                     style={{ paddingRight: "2.75rem" }}
                   />
@@ -208,10 +223,41 @@ export default function Register() {
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-                {passwordError && (
-                  <p style={{ color: "#c33", fontSize: "0.8rem", marginTop: "0.25rem" }}>
-                    {passwordError}
-                  </p>
+                {password.length > 0 && (
+                  <div style={{ marginTop: "0.5rem" }}>
+                    {!passwordStrong && (
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.4rem",
+                        padding: "0.5rem 0.75rem",
+                        background: "#fee",
+                        border: "1px solid #fcc",
+                        borderRadius: "4px",
+                        marginBottom: "0.5rem",
+                      }}>
+                        <span style={{ color: "#c33", fontWeight: 700, fontSize: "1rem" }}>⊗</span>
+                        <p style={{ color: "#c33", margin: 0, fontSize: "0.8rem" }}>
+                          Password is not secure and password must be Strong.
+                        </p>
+                      </div>
+                    )}
+                    {([
+                      [passwordChecks.length,     "Minimum 8 to Maximum 24 characters allowed."],
+                      [passwordChecks.casing,     "Password must contain at least one small and one capital alphabet."],
+                      [passwordChecks.numSpecial, "At least one Numeric digit and one special character (@#$%^&* etc.)"],
+                      [passwordChecks.noSequence, "Password should not contain any sequence or repeated numbers like 123, 000, 111\u00a0, abc\u00a0, aaa etc."],
+                    ] as [boolean, string][]).map(([pass, label]) => (
+                      <div key={label} style={{ display: "flex", alignItems: "flex-start", gap: "0.4rem", marginBottom: "0.2rem" }}>
+                        <span style={{ color: pass ? "#16a34a" : "#c33", fontWeight: 700, fontSize: "0.85rem", flexShrink: 0, lineHeight: "1.4" }}>
+                          {pass ? "✓" : "✗"}
+                        </span>
+                        <p style={{ margin: 0, fontSize: "0.8rem", color: pass ? "#16a34a" : "#c33", lineHeight: "1.4" }}>
+                          {label}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 

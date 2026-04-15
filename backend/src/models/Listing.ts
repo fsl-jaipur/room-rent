@@ -41,6 +41,7 @@ export interface IListing extends Document {
   landmark?: string;
   location: { type: "Point"; coordinates: [number, number] };
   status: string;
+  isActive: boolean;
   photos: IListingPhoto[];
   createdAt: Date;
   updatedAt: Date;
@@ -104,6 +105,7 @@ const listingSchema = new Schema<IListing>(
       enum: ["Active", "Paused", "Rented", "Expired", "Deleted"],
       default: "Active",
     },
+    isActive: { type: Boolean, default: true, index: true },
     photos: [listingPhotoSchema],
   },
   {

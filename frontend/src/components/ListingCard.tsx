@@ -15,6 +15,8 @@ type ListingCardProps = {
   furnishingName: string;
   foodPreferenceName: string;
   coverPhotoUrl: string | null;
+  isFavorited?: boolean;
+  onToggleFavorite?: (listingId: string) => void;
 };
 
 const propertyTypeMap: Record<number, string> = {
@@ -26,11 +28,10 @@ const propertyTypeMap: Record<number, string> = {
 export default function ListingCard(props: ListingCardProps) {
   const navigate = useNavigate();
   const [imageError, setImageError] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsFavorite(!isFavorite);
+    props.onToggleFavorite?.(props.listingId);
   };
 
   return (
@@ -54,12 +55,12 @@ export default function ListingCard(props: ListingCardProps) {
           className="listing-card-favorite"
           onClick={handleFavoriteClick}
           role="button"
-          aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+          aria-label={props.isFavorited ? "Remove from favorites" : "Add to favorites"}
         >
           <Heart 
             size={20} 
-            fill={isFavorite ? "currentColor" : "none"}
-            style={{ color: isFavorite ? '#ef4444' : 'currentColor' }}
+            fill={props.isFavorited ? "currentColor" : "none"}
+            style={{ color: props.isFavorited ? '#ef4444' : 'currentColor' }}
           />
         </div>
         

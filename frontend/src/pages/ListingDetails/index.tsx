@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { Star } from "lucide-react";
 import { ApiError, apiFetch } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -60,6 +61,18 @@ type EditForm = {
   roomPhotoUrls: string[];
 };
 
+type TestimonialItem = {
+  testimonialId: string;
+  reviewerId: string;
+  reviewerName: string;
+  reviewerPhoto: string | null;
+  reviewerGender: string | null;
+  rating: number;
+  body: string;
+  reviewerRole: "Tenant" | "Landlord";
+  createdAt: string;
+};
+
 const propertyTypeMap: Record<number, string> = {
   1: "PG",
   2: "Individual",
@@ -80,6 +93,62 @@ export default function ListingDetailsPage() {
   const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [editExteriorFile, setEditExteriorFile] = useState<File | null>(null);
   const [editRoomFiles, setEditRoomFiles] = useState<Array<File | null>>([null, null]);
+
+  // Testimonials state
+  const [testimonials, setTestimonials] = useState<TestimonialItem[]>([]);
+  const [testimonialsLoading, setTestimonialsLoading] = useState(false);
+  const [avgRating, setAvgRating] = useState<number | null>(null);
+  const [myReview, setMyReview] = useState<{ rating: number; body: string } | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewBody, setReviewBody] = useState("");
+  const [reviewHover, setReviewHover] = useState(0);
+  const [submittingReview, setSubmittingReview] = useState(false);
+
+  // Connection state
+  type ConnectionStatus = {
+    connectionId: string;
+    status: "Pending" | "Accepted" | "Rejected";
+    isConnected: boolean;
+  } | null;
+  const [myConnection, setMyConnection] = useState<ConnectionStatus>(null);
+  const [connectingOwner, setConnectingOwner] = useState(false);
+
+  const loadConnectionStatus = async (listingId: string) => {
+    if (!user) return;
+    try {
+      const data = await apiFetch<{ connection: ConnectionStatus }>(
+        `/api/connections/my-status/${listingId}`,
+        { method: "GET" }
+      );
+      setMyConnection(data.connection);
+    } catch {
+      // silent
+    }
+  };
+
+  const handleConnectOwner = async () => {
+    if (!item || !user) return;
+    setConnectingOwner(true);
+    try {
+      const data = await apiFetch<{ connectionId: string; status: string; isConnected: boolean }>(
+        "/api/connections",
+        {
+          method: "POST",
+          body: JSON.stringify({ listingId: item.listingId }),
+        }
+      );
+      setMyConnection({
+        connectionId: data.connectionId,
+        status: data.status as "Pending" | "Accepted" | "Rejected",
+        isConnected: data.isConnected,
+      });
+      showToast("Connection request sent to owner!", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Failed to send request", "error");
+    } finally {
+      setConnectingOwner(false);
+    }
+  };
 
   const loadListing = async () => {
     if (!listingId) {
@@ -127,14 +196,79 @@ export default function ListingDetailsPage() {
     void loadListing();
   }, [listingId, logout, navigate]);
 
+  useEffect(() => {
+    if (!item) return;
+    void loadTestimonials(item.landlordId);
+    void loadMyReview(item.landlordId, item.listingId);
+    if (user && user.id !== item.landlordId) {
+      void loadConnectionStatus(item.listingId);
+    }
+  }, [item?.landlordId, item?.listingId, user]);
+
   const mapUrl = useMemo(() => {
     if (!item) return "";
     return `https://maps.google.com/maps?q=${item.latitude},${item.longitude}&z=15&output=embed`;
   }, [item]);
   const canEdit = Boolean(user && item && user.id === item.landlordId);
 
-  const handleSaveEdit = async () => {
-    if (!item || !editForm) return;
+  const loadTestimonials = async (landlordId: string) => {
+    setTestimonialsLoading(true);
+    try {
+      const data = await apiFetch<{ items: TestimonialItem[]; avgRating: number | null }>(
+        `/api/testimonials/subject/${landlordId}`,
+        { method: "GET" }
+      );
+      setTestimonials(data.items);
+      setAvgRating(data.avgRating);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Failed to load reviews", "error");
+    } finally {
+      setTestimonialsLoading(false);
+    }
+  };
+
+  const loadMyReview = async (landlordId: string, listingId: string) => {
+    if (!user) return;
+    try {
+      const data = await apiFetch<{ review: { rating: number; body: string } | null }>(
+        `/api/testimonials/mine/${landlordId}?listingId=${listingId}`,
+        { method: "GET" }
+      );
+      if (data.review) {
+        setMyReview(data.review);
+        setReviewRating(data.review.rating);
+        setReviewBody(data.review.body);
+      }
+    } catch {
+      // silently ignore
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!item || !user) return;
+    setSubmittingReview(true);
+    try {
+      await apiFetch("/api/testimonials", {
+        method: "POST",
+        body: JSON.stringify({
+          subjectId: item.landlordId,
+          listingId: item.listingId,
+          rating: reviewRating,
+          body: reviewBody,
+          reviewerRole: "Tenant",
+        }),
+      });
+      setMyReview({ rating: reviewRating, body: reviewBody });
+      showToast("Review submitted successfully", "success");
+      await loadTestimonials(item.landlordId);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Failed to submit review", "error");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {    if (!item || !editForm) return;
     setIsSavingEdit(true);
     setErrorMsg("");
 
@@ -376,6 +510,145 @@ export default function ListingDetailsPage() {
                   referrerPolicy="no-referrer-when-downgrade"
                 />
               </section>
+
+              {/* Testimonials */}
+              <section className="glass-card">
+                <h3 style={{ marginBottom: "1rem", fontSize: "1.25rem", fontWeight: 600 }}>
+                  Landlord Reviews
+                  {avgRating !== null && (
+                    <span style={{ marginLeft: "0.75rem", fontSize: "1rem", fontWeight: 500, color: "var(--text-muted)" }}>
+                      ({avgRating.toFixed(1)} ★ · {testimonials.length} review{testimonials.length !== 1 ? "s" : ""})
+                    </span>
+                  )}
+                </h3>
+
+                {testimonialsLoading ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                    {[1, 2].map((n) => (
+                      <Skeleton key={n} style={{ height: "80px", borderRadius: "8px" }} />
+                    ))}
+                  </div>
+                ) : testimonials.length === 0 ? (
+                  <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>No reviews yet.</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                    {testimonials.map((t) => (
+                      <div
+                        key={t.testimonialId}
+                        style={{
+                          padding: "1rem",
+                          borderRadius: "8px",
+                          border: "1px solid var(--border-color)",
+                          background: "var(--bg-secondary)",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
+                          <div
+                            style={{
+                              width: "36px",
+                              height: "36px",
+                              borderRadius: "50%",
+                              background: "var(--brand-primary)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "#fff",
+                              fontWeight: 700,
+                              fontSize: "1rem",
+                              overflow: "hidden",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {t.reviewerPhoto ? (
+                              <img src={t.reviewerPhoto} alt={t.reviewerName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            ) : (
+                              t.reviewerName.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{t.reviewerName}</div>
+                            <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                              {t.reviewerRole} · {new Date(t.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                            </div>
+                          </div>
+                          <div style={{ marginLeft: "auto", display: "flex", gap: "2px" }}>
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Star
+                                key={s}
+                                size={14}
+                                fill={s <= t.rating ? "var(--brand-primary)" : "none"}
+                                stroke={s <= t.rating ? "var(--brand-primary)" : "var(--text-muted)"}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>{t.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {!user && (
+                  <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid var(--border-color)", color: "var(--text-muted)", fontSize: "0.875rem" }}>
+                    <a href="/login" style={{ color: "var(--brand-primary)", fontWeight: 600 }}>Log in</a> to write a review.
+                  </div>
+                )}
+
+                {user && item && user.id === item.landlordId && (
+                  <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid var(--border-color)", color: "var(--text-muted)", fontSize: "0.875rem" }}>
+                    You cannot review your own listing.
+                  </div>
+                )}
+
+                {user && item && user.id !== item.landlordId && !myConnection?.isConnected && (
+                  <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid var(--border-color)", color: "var(--text-muted)", fontSize: "0.875rem" }}>
+                    Connect with the owner and get your deal confirmed to leave a review.
+                  </div>
+                )}
+
+                {user && item && user.id !== item.landlordId && myConnection?.isConnected && (
+                  <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid var(--border-color)" }}>
+                    <h4 style={{ marginBottom: "0.75rem", fontSize: "1rem", fontWeight: 600 }}>
+                      {myReview ? "Edit Your Review" : "Write a Review"}
+                    </h4>
+                    <div style={{ display: "flex", gap: "4px", marginBottom: "0.75rem" }}>
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          style={{ background: "none", border: "none", cursor: "pointer", padding: "2px" }}
+                          onMouseEnter={() => setReviewHover(s)}
+                          onMouseLeave={() => setReviewHover(0)}
+                          onClick={() => setReviewRating(s)}
+                          aria-label={`Rate ${s} star${s !== 1 ? "s" : ""}`}
+                        >
+                          <Star
+                            size={22}
+                            fill={(reviewHover || reviewRating) >= s ? "var(--brand-primary)" : "none"}
+                            stroke={(reviewHover || reviewRating) >= s ? "var(--brand-primary)" : "var(--text-muted)"}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      className="input-style"
+                      rows={3}
+                      placeholder="Share your experience with this landlord..."
+                      value={reviewBody}
+                      onChange={(e) => setReviewBody(e.target.value)}
+                      maxLength={1000}
+                      style={{ width: "100%", resize: "vertical", marginBottom: "0.75rem" }}
+                    />
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => void handleSubmitReview()}
+                      disabled={submittingReview || reviewBody.trim().length === 0}
+                    >
+                      {submittingReview ? "Submitting..." : myReview ? "Update Review" : "Submit Review"}
+                    </button>
+                  </div>
+                )}
+              </section>
             </div>
 
             {/* Sidebar */}
@@ -417,16 +690,52 @@ export default function ListingDetailsPage() {
                   </p>
                 </div>
 
-                <button
-                  className="btn btn-primary w-full"
-                  style={{ marginBottom: '0.75rem', padding: '0.875rem' }}
-                  onClick={() => alert('Contact feature coming soon!')}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '0.5rem' }}>
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                  </svg>
-                  Contact Owner
-                </button>
+                {!canEdit && (
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    {!user ? (
+                      <button
+                        className="btn btn-primary w-full"
+                        style={{ padding: '0.875rem' }}
+                        onClick={() => navigate('/login')}
+                      >
+                        Log in to Connect
+                      </button>
+                    ) : myConnection === null ? (
+                      <button
+                        className="btn btn-primary w-full"
+                        style={{ padding: '0.875rem' }}
+                        onClick={() => void handleConnectOwner()}
+                        disabled={connectingOwner}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '0.5rem' }}>
+                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                        {connectingOwner ? "Sending Request..." : "Connect Owner"}
+                      </button>
+                    ) : myConnection.status === "Pending" ? (
+                      <div style={{ padding: '0.75rem 1rem', borderRadius: '6px', background: '#fffbeb', border: '1px solid #f59e0b', color: '#92400e', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        Request Pending – awaiting owner response
+                      </div>
+                    ) : myConnection.status === "Rejected" ? (
+                      <div style={{ padding: '0.75rem 1rem', borderRadius: '6px', background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                        </svg>
+                        Deal Closed by owner
+                      </div>
+                    ) : (
+                      <div style={{ padding: '0.75rem 1rem', borderRadius: '6px', background: '#f0fdf4', border: '1px solid #86efac', color: '#166534', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                        Connected – deal confirmed!
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <button
                   className="btn btn-outline w-full"

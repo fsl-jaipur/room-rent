@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { AlertTriangle, Info } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import brandLogo from "../../assets/Roombaazi Final Logo.png";
+
+const OTP_RESEND_LIMIT = 3;
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -9,6 +12,8 @@ export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [resendCount, setResendCount] = useState(0);
+  const [isLimitHit, setIsLimitHit] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,10 +25,12 @@ export default function ForgotPassword() {
       const response = await apiFetch<{ message: string; resetToken?: string; email?: string; otpCode?: string }>(
         "/api/auth/forgot-password",
         {
-        method: "POST",
-        body: JSON.stringify({ email: email.trim() }),
+          method: "POST",
+          body: JSON.stringify({ email: email.trim() }),
         }
       );
+      const newCount = resendCount + 1;
+      setResendCount(newCount);
       setMessage(response.message);
       if (response.resetToken && response.email) {
         const otpQuery = response.otpCode ? `&otp=${encodeURIComponent(response.otpCode)}` : "";
@@ -34,11 +41,18 @@ export default function ForgotPassword() {
         );
       }
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : "Failed to send reset email");
+      const msg = err instanceof Error ? err.message : "Failed to send reset email";
+      setErrorMsg(msg);
+      // 429 = limit exhausted
+      if (msg.toLowerCase().includes("maximum") || msg.toLowerCase().includes("limit")) {
+        setIsLimitHit(true);
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  const remaining = OTP_RESEND_LIMIT - resendCount;
 
   return (
     <div
@@ -63,6 +77,34 @@ export default function ForgotPassword() {
 
         <div className="glass-card">
           <h2 style={{ marginBottom: "1.25rem", textAlign: "center" }}>Forgot Password</h2>
+
+          {/* Static info banner — always visible */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "0.6rem",
+              padding: "0.75rem 1rem",
+              background: "#fffbeb",
+              border: "1px solid #fde68a",
+              borderRadius: "8px",
+              marginBottom: "1rem",
+            }}
+          >
+            <Info size={16} style={{ color: "#d97706", flexShrink: 0, marginTop: "2px" }} />
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "#92400e", lineHeight: 1.5 }}>
+              You can request an OTP up to <strong>{OTP_RESEND_LIMIT} times</strong> per 24 hours.
+              {resendCount > 0 && (
+                <span>
+                  {" "}
+                  <strong style={{ color: remaining <= 1 ? "#dc2626" : "#92400e" }}>
+                    {remaining} attempt{remaining !== 1 ? "s" : ""} remaining.
+                  </strong>
+                </span>
+              )}
+            </p>
+          </div>
+
           {message && (
             <div
               style={{
@@ -76,19 +118,26 @@ export default function ForgotPassword() {
               <p style={{ color: "#146c43", margin: 0, fontSize: "0.9rem" }}>{message}</p>
             </div>
           )}
+
+          {/* Error / limit-hit banner */}
           {errorMsg && (
             <div
               style={{
-                padding: "0.75rem",
-                background: "#fee",
-                border: "1px solid #fcc",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "0.6rem",
+                padding: "0.75rem 1rem",
+                background: isLimitHit ? "#fef2f2" : "#fee",
+                border: `1px solid ${isLimitHit ? "#fca5a5" : "#fcc"}`,
                 borderRadius: "8px",
                 marginBottom: "1rem",
               }}
             >
-              <p style={{ color: "#c33", margin: 0, fontSize: "0.9rem" }}>{errorMsg}</p>
+              <AlertTriangle size={16} style={{ color: "#dc2626", flexShrink: 0, marginTop: "2px" }} />
+              <p style={{ color: "#991b1b", margin: 0, fontSize: "0.9rem", lineHeight: 1.5 }}>{errorMsg}</p>
             </div>
           )}
+
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label>Email Address</label>
@@ -99,10 +148,11 @@ export default function ForgotPassword() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
                 required
+                disabled={isLimitHit}
               />
             </div>
-            <button className="btn btn-primary w-full" type="submit" disabled={loading}>
-              {loading ? "Sending..." : "Send Reset Email"}
+            <button className="btn btn-primary w-full" type="submit" disabled={loading || isLimitHit}>
+              {loading ? "Sending..." : resendCount > 0 ? `Resend OTP (${remaining} left)` : "Send Reset Email"}
             </button>
           </form>
 
