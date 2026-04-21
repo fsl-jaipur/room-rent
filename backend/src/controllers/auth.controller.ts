@@ -253,7 +253,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     // console.log("user", user);
 
     if (!user) {
-      res.status(401).json({ error: "Invalid credentials1" });
+      res.status(401).json({ error: "Invalid credentials" });
       return;
     }
 
@@ -263,7 +263,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     if (!user.passwordHash) {
-      res.status(401).json({ error: "Invalid credentials2" });
+      res.status(401).json({ error: "Invalid credentials" });
       return;
     }
 

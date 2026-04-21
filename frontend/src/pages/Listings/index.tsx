@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ApiError, apiFetch } from "../../lib/api";
-import { useAuth } from "../../context/AuthContext";
 import Navbar from "../../components/Navbar";
+import SiteFooter from "../../components/SiteFooter";
 import FilterSidebar from "../../components/FilterSidebar";
 import ListingCard from "../../components/ListingCard";
 import Skeleton from "../../components/Skeleton";
+import { ApiError, apiFetch } from "../../lib/api";
+import { useAuth } from "../../context/AuthContext";
 
 type Listing = {
   listingId: string;
@@ -15,18 +16,16 @@ type Listing = {
   monthlyRent: number;
   rentTiers: { occupants: number; rent: number }[];
   maxOccupants: number;
-  landlordName: string;
   landlordGender: string | null;
   furnishingName: string;
-  foodPreferenceName: string;
   propertyTypeId: number | null;
-  allowSmoking: boolean;
+  foodPreferenceName: string;
   coverPhotoUrl: string | null;
+  createdAt?: string;
 };
 
 type ListingsResponse = {
   page: number;
-  limit: number;
   total: number;
   totalPages: number;
   items: Listing[];
@@ -34,16 +33,11 @@ type ListingsResponse = {
 
 type FilterState = {
   search: string;
-  city: string;
   minRent: number;
   maxRent: number;
   maxOccupants: number[];
-  floorLevelId: number[];
   furnishingTypeId: number[];
-  foodPreferenceId: number[];
   propertyTypeId: number[];
-  gender: ("Male" | "Female" | "Other")[];
-  allowSmoking: boolean[];
   sortBy: "newest" | "rent_asc" | "rent_desc";
 };
 
@@ -52,66 +46,145 @@ const RENT_MAX = 50000;
 
 const defaultFilters: FilterState = {
   search: "",
-  city: "",
   minRent: RENT_MIN,
   maxRent: RENT_MAX,
   maxOccupants: [],
-  floorLevelId: [],
   furnishingTypeId: [],
-  foodPreferenceId: [],
   propertyTypeId: [],
-  gender: [],
-  allowSmoking: [],
   sortBy: "newest",
 };
 
-const parseNumberList = (value: string | null): number[] =>
-  (value || "")
+const parseNumberList = (value: string | null): number[] => {
+  if (!value || !value.trim()) return [];
+  return value
     .split(",")
-    .map((v) => v.trim())
-    .filter((v) => v !== "")
-    .map((v) => Number(v))
-    .filter((v) => Number.isFinite(v));
-
-const parseBooleanList = (value: string | null): boolean[] =>
-  (value || "")
-    .split(",")
-    .map((v) => v.trim().toLowerCase())
-    .filter((v) => v === "true" || v === "false")
-    .map((v) => v === "true");
-
-const parseGenderList = (value: string | null): ("Male" | "Female" | "Other")[] =>
-  (value || "")
-    .split(",")
-    .map((v) => v.trim().toLowerCase())
-    .filter((v) => v === "male" || v === "female" || v === "other")
-    .map((v): "Male" | "Female" | "Other" => {
-      if (v === "male") return "Male";
-      if (v === "female") return "Female";
-      return "Other";
-    })
-    .slice(0, 1);
+    .map((item) => Number(item.trim()))
+    .filter((item) => Number.isFinite(item) && item > 0);
+};
 
 export default function ListingsPage() {
+  const navigate = useNavigate();
+  const { logout, user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [searchParams, setSearchParams] = useSearchParams();
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
-  const navigate = useNavigate();
-  const { logout, user } = useAuth();
+  const [searchInput, setSearchInput] = useState("");
+
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
 
-  // Load favorite IDs once user is known
+  useEffect(() => {
+    const sanitized = new URLSearchParams();
+    const keysToKeep = ["page", "sortBy", "search", "minRent", "maxRent", "maxOccupants", "furnishingTypeId", "propertyTypeId"];
+    keysToKeep.forEach((key) => {
+      const value = searchParams.get(key);
+      if (value) sanitized.set(key, value);
+    });
+
+    const rawPropertyTypeIds = parseNumberList(searchParams.get("propertyTypeId")).filter((value) =>
+      [1, 2, 3].includes(value),
+    );
+    if (rawPropertyTypeIds.length > 0) {
+      sanitized.set("propertyTypeId", rawPropertyTypeIds.join(","));
+    } else {
+      sanitized.delete("propertyTypeId");
+    }
+
+    if (sanitized.toString() !== searchParams.toString()) {
+      setSearchParams(sanitized, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    setFilters({
+      search: searchParams.get("search") || "",
+      minRent: Number(searchParams.get("minRent")) || defaultFilters.minRent,
+      maxRent: Number(searchParams.get("maxRent")) || defaultFilters.maxRent,
+      maxOccupants: parseNumberList(searchParams.get("maxOccupants")),
+      furnishingTypeId: parseNumberList(searchParams.get("furnishingTypeId")),
+      propertyTypeId: parseNumberList(searchParams.get("propertyTypeId")).filter((value) =>
+        [1, 2, 3].includes(value),
+      ),
+      sortBy:
+        searchParams.get("sortBy") === "rent_asc" || searchParams.get("sortBy") === "rent_desc"
+          ? (searchParams.get("sortBy") as "rent_asc" | "rent_desc")
+          : "newest",
+    });
+    setSearchInput(searchParams.get("search") || "");
+  }, [searchParams]);
+
   useEffect(() => {
     if (!user) return;
     apiFetch<{ ids: string[] }>("/api/favorites/ids", { method: "GET" })
       .then((data) => setFavoriteIds(new Set(data.ids)))
-      .catch(() => {/* silently ignore */});
+      .catch(() => setFavoriteIds(new Set()));
   }, [user]);
+
+  const queryPath = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", "24");
+    params.set("sortBy", filters.sortBy);
+
+    if (filters.search.trim()) params.set("search", filters.search.trim());
+    if (filters.minRent > RENT_MIN) params.set("minRent", String(filters.minRent));
+    if (filters.maxRent < RENT_MAX) params.set("maxRent", String(filters.maxRent));
+    if (filters.maxOccupants.length) params.set("maxOccupants", filters.maxOccupants.join(","));
+    if (filters.furnishingTypeId.length) params.set("furnishingTypeId", filters.furnishingTypeId.join(","));
+    if (filters.propertyTypeId.length) params.set("propertyTypeId", filters.propertyTypeId.join(","));
+
+    return `/api/listings?${params.toString()}`;
+  }, [filters, page]);
+
+  useEffect(() => {
+    let active = true;
+
+    const load = async () => {
+      setLoading(true);
+      setErrorMsg("");
+
+      try {
+        const data = await apiFetch<ListingsResponse>(queryPath, { method: "GET" });
+        if (!active) return;
+        setItems(Array.isArray(data.items) ? data.items : []);
+        setTotal(data.total ?? 0);
+        setTotalPages(Math.max(1, data.totalPages ?? 1));
+      } catch (error) {
+        if (!active) return;
+        if (error instanceof ApiError && error.status === 401) {
+          await logout();
+          navigate("/login", { replace: true });
+          return;
+        }
+        setErrorMsg(error instanceof Error ? error.message : "Failed to load listings");
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void load();
+
+    return () => {
+      active = false;
+    };
+  }, [queryPath, logout, navigate]);
+
+  const updateParams = (nextFilters: FilterState, nextPage = 1) => {
+    const next = new URLSearchParams();
+    next.set("page", String(nextPage));
+    next.set("sortBy", nextFilters.sortBy);
+    if (nextFilters.search.trim()) next.set("search", nextFilters.search.trim());
+    if (nextFilters.minRent > RENT_MIN) next.set("minRent", String(nextFilters.minRent));
+    if (nextFilters.maxRent < RENT_MAX) next.set("maxRent", String(nextFilters.maxRent));
+    if (nextFilters.maxOccupants.length) next.set("maxOccupants", nextFilters.maxOccupants.join(","));
+    if (nextFilters.furnishingTypeId.length) next.set("furnishingTypeId", nextFilters.furnishingTypeId.join(","));
+    if (nextFilters.propertyTypeId.length) next.set("propertyTypeId", nextFilters.propertyTypeId.join(","));
+    setSearchParams(next);
+  };
 
   const handleToggleFavorite = async (listingId: string) => {
     try {
@@ -123,236 +196,155 @@ export default function ListingsPage() {
         return next;
       });
     } catch {
-      // silently ignore
+      // no-op
     }
-  };
-
-  useEffect(() => {
-    setFilters({
-      search: searchParams.get("search") || "",
-      city: searchParams.get("city") || "",
-      minRent: Number(searchParams.get("minRent")) || defaultFilters.minRent,
-      maxRent: Number(searchParams.get("maxRent")) || defaultFilters.maxRent,
-      maxOccupants: parseNumberList(searchParams.get("maxOccupants")).slice(0, 1),
-      floorLevelId: parseNumberList(searchParams.get("floorLevelId")),
-      furnishingTypeId: parseNumberList(searchParams.get("furnishingTypeId")),
-      foodPreferenceId: parseNumberList(searchParams.get("foodPreferenceId")),
-      propertyTypeId: parseNumberList(searchParams.get("propertyTypeId")),
-      gender: parseGenderList(searchParams.get("gender")),
-      allowSmoking: parseBooleanList(searchParams.get("allowSmoking")),
-      sortBy:
-        searchParams.get("sortBy") === "rent_asc" || searchParams.get("sortBy") === "rent_desc"
-          ? (searchParams.get("sortBy") as "rent_asc" | "rent_desc")
-          : "newest",
-    });
-  }, [searchParams]);
-
-  const queryPath = useMemo(() => {
-    const params = new URLSearchParams();
-    params.set("page", String(page));
-    params.set("limit", "24");
-    params.set("sortBy", filters.sortBy);
-
-    if (filters.search.trim()) params.set("search", filters.search.trim());
-    if (filters.city.trim()) params.set("city", filters.city.trim());
-    if (filters.minRent > RENT_MIN) params.set("minRent", String(filters.minRent));
-    if (filters.maxRent < RENT_MAX) params.set("maxRent", String(filters.maxRent));
-    if (filters.maxOccupants.length) params.set("maxOccupants", filters.maxOccupants.join(","));
-    if (filters.floorLevelId.length) params.set("floorLevelId", filters.floorLevelId.join(","));
-    if (filters.furnishingTypeId.length) {
-      params.set("furnishingTypeId", filters.furnishingTypeId.join(","));
-    }
-    if (filters.foodPreferenceId.length) {
-      params.set("foodPreferenceId", filters.foodPreferenceId.join(","));
-    }
-    if (filters.propertyTypeId.length) {
-      params.set("propertyTypeId", filters.propertyTypeId.join(","));
-    }
-    if (filters.gender.length) {
-      params.set("gender", filters.gender.join(","));
-    }
-    if (filters.allowSmoking.length) {
-      params.set("allowSmoking", filters.allowSmoking.map(String).join(","));
-    }
-
-    return `/api/listings?${params.toString()}`;
-  }, [filters, page]);
-
-  useEffect(() => {
-    const loadListings = async () => {
-      setLoading(true);
-      setErrorMsg("");
-
-      try {
-        const data = await apiFetch<ListingsResponse>(queryPath, { method: "GET" });
-        setItems(data.items);
-        setTotal(data.total);
-        setTotalPages(Math.max(1, data.totalPages));
-      } catch (error: unknown) {
-        if (error instanceof ApiError && error.status === 401) {
-          await logout();
-          navigate("/login", { replace: true });
-          return;
-        }
-        setErrorMsg(error instanceof Error ? error.message : "Failed to load listings");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadListings();
-  }, [queryPath, logout, navigate]);
-
-  const applyFilters = (current: FilterState = filters) => {
-    setFilters(current);
-    const next = new URLSearchParams();
-    next.set("page", "1");
-    next.set("sortBy", current.sortBy);
-    if (current.search.trim()) next.set("search", current.search.trim());
-    if (current.city.trim()) next.set("city", current.city.trim());
-    if (current.minRent > RENT_MIN) next.set("minRent", String(current.minRent));
-    if (current.maxRent < RENT_MAX) next.set("maxRent", String(current.maxRent));
-    if (current.maxOccupants.length) next.set("maxOccupants", current.maxOccupants.join(","));
-    if (current.floorLevelId.length) next.set("floorLevelId", current.floorLevelId.join(","));
-    if (current.furnishingTypeId.length) next.set("furnishingTypeId", current.furnishingTypeId.join(","));
-    if (current.foodPreferenceId.length) next.set("foodPreferenceId", current.foodPreferenceId.join(","));
-    if (current.propertyTypeId.length) next.set("propertyTypeId", current.propertyTypeId.join(","));
-    if (current.gender.length) next.set("gender", current.gender.join(","));
-    if (current.allowSmoking.length) next.set("allowSmoking", current.allowSmoking.map(String).join(","));
-    setSearchParams(next);
-  };
-
-  const clearFilters = () => {
-    setFilters(defaultFilters);
-    setSearchParams({ page: "1" });
-  };
-
-  const changePage = (nextPage: number) => {
-    const next = new URLSearchParams(searchParams);
-    next.set("page", String(nextPage));
-    setSearchParams(next);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
-    <>
+    <div className="app-shell">
       <Navbar />
-      <div className="listings-container">
-        <div className="listings-hero">
-          <div>
-            <p className="listings-hero-eyebrow">Discover Rentals</p>
-            <h2>Find your next stay with confidence</h2>
-            <p>Shortlist verified homes with smart filters for budget, type, and preferences.</p>
+
+      <main className="page-shell">
+        <section className="hero-panel hero-gradient">
+          <div className="page-container" style={{ padding: "56px 0 52px" }}>
+            <p className="eyebrow" style={{ marginBottom: 14 }}>Discover Rentals</p>
+            <h1 style={{ fontSize: "3.25rem", lineHeight: 1.06, marginBottom: 10 }}>
+              Find your next stay with confidence
+            </h1>
+            <p className="section-subtitle">
+              Shortlist verified homes with smart filters for budget, type and preferences.
+            </p>
           </div>
-       
-        </div>
+        </section>
 
-        <div className="listings-layout">
-          <FilterSidebar
-            filters={filters}
-            onFilterChange={setFilters}
-            onApply={(f) => applyFilters(f)}
-            onClear={clearFilters}
-          />
-
-          <section>
-            <div className="sort-bar">
-              <div className="sort-bar-count">
-                {loading ? <Skeleton style={{ width: 180, height: 20 }} /> : `${total.toLocaleString("en-IN")} properties found`}
-              </div>
-              <select
-                value={filters.sortBy}
-                onChange={(e) => {
-                  const newFilters = {
-                    ...filters,
-                    sortBy: e.target.value as "newest" | "rent_asc" | "rent_desc",
-                  };
-                  setFilters(newFilters);
-                  const next = new URLSearchParams(searchParams);
-                  next.set("sortBy", e.target.value);
-                  next.set("page", "1");
-                  setSearchParams(next);
+        <section className="page-section">
+          <div className="page-container">
+            <div className="listings-layout">
+              <FilterSidebar
+                filters={filters}
+                onFilterChange={setFilters}
+                onApply={(nextFilters) => updateParams(nextFilters)}
+                onClear={() => {
+                  setFilters(defaultFilters);
+                  updateParams(defaultFilters, 1);
                 }}
-              >
-                <option value="newest">Newest First</option>
-                <option value="rent_asc">Price: Low to High</option>
-                <option value="rent_desc">Price: High to Low</option>
-              </select>
-            </div>
+              />
 
-            {errorMsg && (
-              <div className="glass-card text-center" style={{ color: "#ef4444", marginBottom: '1rem' }}>
-                {errorMsg}
-              </div>
-            )}
+              <div>
+                <div className="sort-bar">
+                  <div>
+                    <h3>{loading ? "Loading properties..." : `${total.toLocaleString("en-IN")} properties found`}</h3>
+                    <p>Updated just now</p>
+                  </div>
 
-            {!loading && !errorMsg && items.length === 0 && (
-              <div className="glass-card text-center">
-                <p style={{ margin: 0 }}>No properties found matching your criteria.</p>
-              </div>
-            )}
-
-            <div className="listings-grid">
-              {loading
-                ? Array.from({ length: 6 }).map((_, idx) => (
-                    <div key={`listing-skeleton-${idx}`} className="listing-card" style={{ padding: 0, overflow: "hidden" }}>
-                      <Skeleton style={{ width: "100%", aspectRatio: "4 / 3" }} />
-                      <div style={{ padding: "1.25rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                        <Skeleton style={{ width: "50%", height: 24 }} />
-                        <Skeleton style={{ width: "80%", height: 18 }} />
-                        <Skeleton style={{ width: "65%", height: 16 }} />
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
-                          <Skeleton style={{ width: 70, height: 26, borderRadius: 999 }} />
-                          <Skeleton style={{ width: 90, height: 26, borderRadius: 999 }} />
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                : items.map((item) => (
-                    <ListingCard
-                      key={item.listingId}
-                      listingId={item.listingId}
-                      title={item.title}
-                      colony={item.colony}
-                      city={item.city}
-                      monthlyRent={item.monthlyRent}
-                      rentTiers={item.rentTiers ?? []}
-                      maxOccupants={item.maxOccupants}
-                      landlordGender={item.landlordGender}
-                      propertyTypeId={item.propertyTypeId}
-                      furnishingName={item.furnishingName}
-                      foodPreferenceName={item.foodPreferenceName}
-                      coverPhotoUrl={item.coverPhotoUrl}
-                      isFavorited={favoriteIds.has(item.listingId)}
-                      onToggleFavorite={handleToggleFavorite}
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <input
+                      className="input-style"
+                      value={searchInput}
+                      onChange={(event) => setSearchInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          const nextFilters = { ...filters, search: searchInput.trim() };
+                          setFilters(nextFilters);
+                          updateParams(nextFilters);
+                        }
+                      }}
+                      placeholder="Search area or colony"
+                      style={{ maxWidth: 260, height: 48 }}
                     />
-                  ))}
-            </div>
 
-            {totalPages > 1 && (
-              <div className="pagination">
-                <button
-                  className="btn btn-outline"
-                  disabled={page <= 1}
-                  onClick={() => changePage(page - 1)}
-                >
-                  Previous
-                </button>
-                <span>
-                  Page {page} of {totalPages}
-                </span>
-                <button
-                  className="btn btn-outline"
-                  disabled={page >= totalPages}
-                  onClick={() => changePage(page + 1)}
-                >
-                  Next
-                </button>
+                    <select
+                      className="select-style"
+                      value={filters.sortBy}
+                      onChange={(event) => {
+                        const nextFilters = {
+                          ...filters,
+                          sortBy: event.target.value as FilterState["sortBy"],
+                        };
+                        setFilters(nextFilters);
+                        updateParams(nextFilters);
+                      }}
+                      style={{ maxWidth: 190, height: 48 }}
+                    >
+                      <option value="newest">Newest First</option>
+                      <option value="rent_asc">Price: Low to High</option>
+                      <option value="rent_desc">Price: High to Low</option>
+                    </select>
+                  </div>
+                </div>
+
+                {errorMsg ? <div className="error-banner">{errorMsg}</div> : null}
+
+                <div className="listing-grid">
+                  {loading
+                    ? Array.from({ length: 6 }).map((_, index) => (
+                        <div key={`listing-skeleton-${index}`} className="listing-card">
+                          <Skeleton style={{ aspectRatio: "1.24 / 1" }} />
+                          <div style={{ padding: 18 }}>
+                            <Skeleton style={{ height: 24, width: "42%", marginBottom: 10 }} />
+                            <Skeleton style={{ height: 18, width: "76%", marginBottom: 8 }} />
+                            <Skeleton style={{ height: 18, width: "58%", marginBottom: 14 }} />
+                            <Skeleton style={{ height: 16, width: "90%" }} />
+                          </div>
+                        </div>
+                      ))
+                    : items.map((item) => (
+                        <ListingCard
+                          key={item.listingId}
+                          listingId={item.listingId}
+                          title={item.title}
+                          colony={item.colony}
+                          city={item.city}
+                          monthlyRent={item.monthlyRent}
+                          rentTiers={item.rentTiers ?? []}
+                          maxOccupants={item.maxOccupants}
+                          landlordGender={item.landlordGender}
+                          propertyTypeId={item.propertyTypeId}
+                          furnishingName={item.furnishingName}
+                          foodPreferenceName={item.foodPreferenceName}
+                          coverPhotoUrl={item.coverPhotoUrl}
+                          isFavorited={favoriteIds.has(item.listingId)}
+                          onToggleFavorite={handleToggleFavorite}
+                          createdAt={item.createdAt}
+                        />
+                      ))}
+                </div>
+
+                {!loading && !errorMsg && items.length === 0 ? (
+                  <div className="surface-card" style={{ padding: 28, marginTop: 20, textAlign: "center" }}>
+                    <h3 style={{ marginBottom: 8 }}>No properties found</h3>
+                    <p>Try widening your filters or searching another area.</p>
+                  </div>
+                ) : null}
+
+                {totalPages > 1 ? (
+                  <div className="pagination">
+                    <button
+                      className="btn btn-outline"
+                      disabled={page <= 1}
+                      onClick={() => updateParams(filters, page - 1)}
+                    >
+                      Previous
+                    </button>
+                    <span style={{ fontWeight: 700, color: "var(--slate-700)" }}>
+                      Page {page} of {totalPages}
+                    </span>
+                    <button
+                      className="btn btn-outline"
+                      disabled={page >= totalPages}
+                      onClick={() => updateParams(filters, page + 1)}
+                    >
+                      Next
+                    </button>
+                  </div>
+                ) : null}
               </div>
-            )}
-          </section>
-        </div>
-      </div>
-    </>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <SiteFooter />
+    </div>
   );
 }

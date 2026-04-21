@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Heart, MapPin } from 'lucide-react';
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { BedDouble, Heart, Home, MapPin, Sofa, Users } from "lucide-react";
 
 type ListingCardProps = {
   listingId: string;
@@ -17,114 +17,121 @@ type ListingCardProps = {
   coverPhotoUrl: string | null;
   isFavorited?: boolean;
   onToggleFavorite?: (listingId: string) => void;
+  createdAt?: string;
 };
 
 const propertyTypeMap: Record<number, string> = {
-  1: 'PG',
-  2: 'Individual',
-  3: 'Flat',
+  1: "PG",
+  2: "Independent Room",
+  3: "Flat",
+  4: "Studio",
 };
 
-export default function ListingCard(props: ListingCardProps) {
+function formatRelativeTime(value?: string) {
+  if (!value) return "Recently";
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) return "Recently";
+  const diffHours = Math.max(1, Math.floor((Date.now() - time) / (1000 * 60 * 60)));
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+  const diffDays = Math.max(1, Math.floor(diffHours / 24));
+  return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+}
+
+export default function ListingCard({
+  listingId,
+  title,
+  colony,
+  city,
+  monthlyRent,
+  maxOccupants,
+  propertyTypeId,
+  furnishingName,
+  coverPhotoUrl,
+  isFavorited,
+  onToggleFavorite,
+  createdAt,
+}: ListingCardProps) {
   const navigate = useNavigate();
   const [imageError, setImageError] = useState(false);
-
-  const handleFavoriteClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    props.onToggleFavorite?.(props.listingId);
-  };
+  const propertyLabel = propertyTypeId ? propertyTypeMap[propertyTypeId] ?? "Property" : "Property";
+  const relativeTime = useMemo(() => formatRelativeTime(createdAt), [createdAt]);
+  const titleAccent = /studio/i.test(title) || /mansarovar/i.test(title);
 
   return (
     <article
       className="listing-card"
-      onClick={() => navigate(`/listings/${props.listingId}`)}
+      onClick={() => navigate(`/listings/${listingId}`)}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          navigate(`/listings/${props.listingId}`);
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          navigate(`/listings/${listingId}`);
         }
       }}
     >
       <div className="listing-card-image">
-        <div className="listing-card-badge">
-          {props.maxOccupants} {props.maxOccupants === 1 ? 'BHK' : 'BHK'}
+        <div className="listing-card-badges">
+          <div className="listing-card-badges-left">
+            <span className="badge badge-dark" style={{ padding: "6px 10px", fontSize: "0.75rem" }}>
+              {propertyLabel}
+            </span>
+            <span className="badge badge-verified" style={{ padding: "6px 10px", fontSize: "0.75rem" }}>
+              Verified
+            </span>
+          </div>
+
+          <button
+            className={`listing-card-favorite ${isFavorited ? "active" : ""}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleFavorite?.(listingId);
+            }}
+            aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+          >
+            <Heart size={18} fill={isFavorited ? "currentColor" : "none"} />
+          </button>
         </div>
-        <div 
-          className="listing-card-favorite"
-          onClick={handleFavoriteClick}
-          role="button"
-          aria-label={props.isFavorited ? "Remove from favorites" : "Add to favorites"}
-        >
-          <Heart 
-            size={20} 
-            fill={props.isFavorited ? "currentColor" : "none"}
-            style={{ color: props.isFavorited ? '#ef4444' : 'currentColor' }}
-          />
-        </div>
-        
-        {props.coverPhotoUrl && !imageError ? (
-          <img
-            src={props.coverPhotoUrl}
-            alt={props.title}
-            onError={() => setImageError(true)}
-          />
+
+        {coverPhotoUrl && !imageError ? (
+          <img src={coverPhotoUrl} alt={title} onError={() => setImageError(true)} />
         ) : (
           <div className="listing-card-placeholder">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-              <circle cx="8.5" cy="8.5" r="1.5"/>
-              <polyline points="21 15 16 10 5 21"/>
-            </svg>
+            <Home size={74} />
+            <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>NO IMAGE YET</span>
           </div>
         )}
       </div>
 
       <div className="listing-card-content">
-        <div className="listing-card-price">
-          ₹{Number(props.monthlyRent).toLocaleString('en-IN')}
-          <span className="listing-card-price-label">/mo</span>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '0.3rem' }}>
-            ({props.maxOccupants} occ.)
-          </span>
-        </div>
-        {props.rentTiers && props.rentTiers.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginBottom: '0.4rem' }}>
-            {[...props.rentTiers]
-              .sort((a, b) => b.occupants - a.occupants)
-              .map((tier) => (
-                <span
-                  key={tier.occupants}
-                  style={{
-                    fontSize: '0.75rem',
-                    background: 'var(--hover-bg)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '999px',
-                    padding: '0.1rem 0.5rem',
-                    color: 'var(--text-secondary)',
-                  }}
-                >
-                  {tier.occupants} occ: ₹{Number(tier.rent).toLocaleString('en-IN')}
-                </span>
-              ))}
+        <div className="listing-card-price-row">
+          <div className="listing-card-price">
+            ₹{monthlyRent.toLocaleString("en-IN")}
+            <span>/mo</span>
           </div>
-        )}
-        <h3 className="listing-card-title">{props.title}</h3>
-        <p className="listing-card-location">
-          <MapPin size={16} />
-          {props.colony}, {props.city}
-        </p>
-        
-        <div className="listing-card-features">
-          <span className="feature-tag">{props.maxOccupants} {props.maxOccupants === 1 ? 'Person' : 'People'}</span>
-          {props.propertyTypeId && (
-            <span className="feature-tag">{propertyTypeMap[props.propertyTypeId] || 'Property'}</span>
-          )}
-          {props.landlordGender && (
-            <span className="feature-tag">{props.landlordGender}</span>
-          )}
-          <span className="feature-tag">{props.furnishingName}</span>
+          <span className="listing-card-time">{relativeTime}</span>
+        </div>
+
+        <h3 className={`listing-card-title ${titleAccent ? "highlight" : ""}`}>{title}</h3>
+
+        <div className="listing-card-location">
+          <MapPin size={15} />
+          {colony}, {city}
+        </div>
+
+        <div className="listing-card-meta">
+          <span className="listing-card-meta-item">
+            <Users size={14} />
+            {maxOccupants} occ
+          </span>
+          <span className="listing-card-meta-item">
+            <Sofa size={14} />
+            {furnishingName}
+          </span>
+          <span className="listing-card-meta-item" style={{ color: "var(--orange-500)", fontWeight: 700 }}>
+            <BedDouble size={14} />
+            Amenities
+          </span>
         </div>
       </div>
     </article>

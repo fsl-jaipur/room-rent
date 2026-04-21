@@ -1,34 +1,24 @@
-﻿import { useEffect, useRef } from 'react';
-
 type FilterState = {
   search: string;
-  city: string;
   minRent: number;
   maxRent: number;
   maxOccupants: number[];
-  floorLevelId: number[];
   furnishingTypeId: number[];
-  foodPreferenceId: number[];
   propertyTypeId: number[];
-  gender: ("Male" | "Female" | "Other")[];
-  allowSmoking: boolean[];
-  sortBy: 'newest' | 'rent_asc' | 'rent_desc';
+  sortBy: "newest" | "rent_asc" | "rent_desc";
 };
 
 type FilterSidebarProps = {
   filters: FilterState;
   onFilterChange: (filters: FilterState) => void;
-  onApply: (flushed: FilterState) => void;
+  onApply: (filters: FilterState) => void;
   onClear: () => void;
 };
 
-const RENT_MIN = 1000;
-const RENT_MAX = 50000;
-
-const toggleNumber = (current: number[], value: number): number[] =>
+const toggleNumber = (current: number[], value: number) =>
   current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
 
-const toggleExclusive = <T,>(current: T[], value: T): T[] =>
+const toggleExclusive = <T,>(current: T[], value: T) =>
   current.includes(value) ? [] : [value];
 
 const occupantOptions = [
@@ -38,194 +28,139 @@ const occupantOptions = [
   { value: 4, label: "Family" },
 ];
 
-export default function FilterSidebar({ filters, onFilterChange, onApply, onClear }: FilterSidebarProps) {
-  const latestFilters = useRef(filters);
-
-  // Always keep latest filters ref current
-  useEffect(() => { latestFilters.current = filters; });
-
-  const handleApply = () => {
-    onFilterChange(latestFilters.current);
-    onApply(latestFilters.current);
-  };
-
+export default function FilterSidebar({
+  filters,
+  onFilterChange,
+  onApply,
+  onClear,
+}: FilterSidebarProps) {
   return (
-    <aside className="filter-sidebar">
-      <div className="filter-header">
-        <h3>Filters</h3>
-        <button className="btn-text" onClick={onClear}>Clear all</button>
+    <aside className="filter-panel">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <h3 style={{ fontSize: "1.9rem" }}>Filters</h3>
+        <button className="btn btn-ghost" onClick={onClear}>
+          Clear all
+        </button>
       </div>
 
-      {/* Budget sliders with labels */}
       <div className="filter-section">
-        <label className="filter-label">Budget</label>
+        <span className="filter-label">Budget</span>
 
-        <div style={{ marginBottom: '0.6rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '0.2rem' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Min Rent</span>
-            <span style={{ fontWeight: 600 }}>{'₹'}{filters.minRent.toLocaleString('en-IN')}</span>
+        <div className="range-row">
+          <div className="range-row-header">
+            <span>Min Rent</span>
+            <strong>₹{filters.minRent.toLocaleString("en-IN")}</strong>
           </div>
           <input
+            className="range-input"
             type="range"
-            min={RENT_MIN}
-            max={RENT_MAX}
+            min={1000}
+            max={50000}
             step={500}
             value={filters.minRent}
-            style={{ width: '100%' }}
-            onChange={(e) => {
-              const next = Number(e.target.value);
-              onFilterChange({ ...filters, minRent: Math.min(next, filters.maxRent) });
-            }}
+            onChange={(event) =>
+              onFilterChange({
+                ...filters,
+                minRent: Math.min(Number(event.target.value), filters.maxRent),
+              })
+            }
           />
         </div>
 
-        <div style={{ marginBottom: '0.4rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '0.2rem' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Max Rent</span>
-            <span style={{ fontWeight: 600 }}>{'₹'}{filters.maxRent.toLocaleString('en-IN')}</span>
+        <div className="range-row">
+          <div className="range-row-header">
+            <span>Max Rent</span>
+            <strong>₹{filters.maxRent.toLocaleString("en-IN")}</strong>
           </div>
           <input
+            className="range-input"
             type="range"
-            min={RENT_MIN}
-            max={RENT_MAX}
+            min={1000}
+            max={50000}
             step={500}
             value={filters.maxRent}
-            style={{ width: '100%' }}
-            onChange={(e) => {
-              const next = Number(e.target.value);
-              onFilterChange({ ...filters, maxRent: Math.max(next, filters.minRent) });
-            }}
+            onChange={(event) =>
+              onFilterChange({
+                ...filters,
+                maxRent: Math.max(Number(event.target.value), filters.minRent),
+              })
+            }
           />
         </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.73rem', color: 'var(--text-muted)' }}>
-        </div>
       </div>
 
-      {/* Occupants â€“ single select */}
       <div className="filter-section">
-        <label className="filter-label">Occupants</label>
-        <div className="checkbox-grid">
+        <span className="filter-label">Occupants</span>
+        <div className="option-grid">
           {occupantOptions.map((option) => (
-            <label key={option.value} className="checkbox-pill">
-              <input
-                type="checkbox"
-                checked={filters.maxOccupants.includes(option.value)}
-                onChange={() =>
-                  onFilterChange({
-                    ...filters,
-                    maxOccupants: toggleExclusive(filters.maxOccupants, option.value),
-                  })
-                }
-              />
-              <span>{option.label}</span>
-            </label>
+            <button
+              key={option.value}
+              type="button"
+              className={`option-pill ${filters.maxOccupants.includes(option.value) ? "active" : ""}`}
+              onClick={() =>
+                onFilterChange({
+                  ...filters,
+                  maxOccupants: toggleExclusive(filters.maxOccupants, option.value),
+                })
+              }
+            >
+              {option.label}
+            </button>
           ))}
         </div>
       </div>
 
-      {/* Property Type â€“ single select */}
       <div className="filter-section">
-        <label className="filter-label">Property Type</label>
-        <div className="checkbox-list">
+        <span className="filter-label">Property Type</span>
+        <div className="checkbox-stack">
           {[
-            { id: 1, name: 'PG' },
-            { id: 2, name: 'Individual' },
-            { id: 3, name: 'Flat' },
-          ].map((type) => (
-            <label key={type.id} className="checkbox-item">
+            { id: 1, name: "PG" },
+            { id: 3, name: "Flat" },
+            { id: 2, name: "Independent Room" },
+          ].map((item) => (
+            <label key={item.id} className="checkbox-item">
               <input
                 type="checkbox"
-                checked={filters.propertyTypeId.includes(type.id)}
+                checked={filters.propertyTypeId.includes(item.id)}
                 onChange={() =>
                   onFilterChange({
                     ...filters,
-                    propertyTypeId: toggleExclusive(filters.propertyTypeId, type.id),
+                    propertyTypeId: toggleExclusive(filters.propertyTypeId, item.id),
                   })
                 }
               />
-              <span>{type.name}</span>
+              <span>{item.name}</span>
             </label>
           ))}
         </div>
       </div>
 
-      {/* Room For (Gender) â€“ single select */}
       <div className="filter-section">
-        <label className="filter-label">Room For</label>
-        <div className="checkbox-list">
-          {["Male", "Female", "Other"].map((g) => (
-            <label key={g} className="checkbox-item">
-              <input
-                type="checkbox"
-                checked={filters.gender.includes(g as "Male" | "Female" | "Other")}
-                onChange={() => {
-                  const value = g as "Male" | "Female" | "Other";
-                  onFilterChange({
-                    ...filters,
-                    gender: toggleExclusive(filters.gender, value),
-                  });
-                }}
-              />
-              <span>{g}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Furnishing */}
-      <div className="filter-section">
-        <label className="filter-label">Furnishing</label>
-        <div className="checkbox-list">
+        <span className="filter-label">Furnishing</span>
+        <div className="checkbox-stack">
           {[
-            { id: 1, name: 'Unfurnished' },
-            { id: 2, name: 'Semi-Furnished' },
-            { id: 3, name: 'Fully-Furnished' },
-          ].map((f) => (
-            <label key={f.id} className="checkbox-item">
+            { id: 3, name: "Furnished" },
+            { id: 2, name: "Semi-Furnished" },
+            { id: 1, name: "Unfurnished" },
+          ].map((item) => (
+            <label key={item.id} className="checkbox-item">
               <input
                 type="checkbox"
-                checked={filters.furnishingTypeId.includes(f.id)}
+                checked={filters.furnishingTypeId.includes(item.id)}
                 onChange={() =>
                   onFilterChange({
                     ...filters,
-                    furnishingTypeId: toggleNumber(filters.furnishingTypeId, f.id),
+                    furnishingTypeId: toggleNumber(filters.furnishingTypeId, item.id),
                   })
                 }
               />
-              <span>{f.name}</span>
+              <span>{item.name}</span>
             </label>
           ))}
         </div>
       </div>
 
-      {/* Food Preference */}
-      <div className="filter-section">
-        <label className="filter-label">Food Preference</label>
-        <div className="checkbox-list">
-          {[
-            { id: 1, name: 'Veg Only' },
-            { id: 2, name: 'Non-Veg Allowed' },
-            { id: 3, name: 'No Restriction' },
-          ].map((f) => (
-            <label key={f.id} className="checkbox-item">
-              <input
-                type="checkbox"
-                checked={filters.foodPreferenceId.includes(f.id)}
-                onChange={() =>
-                  onFilterChange({
-                    ...filters,
-                    foodPreferenceId: toggleNumber(filters.foodPreferenceId, f.id),
-                  })
-                }
-              />
-              <span>{f.name}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <button className="btn btn-primary w-full" onClick={handleApply}>
+      <button className="btn btn-dark btn-block" style={{ marginTop: 24 }} onClick={() => onApply(filters)}>
         Apply Filters
       </button>
     </aside>

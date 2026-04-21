@@ -1,120 +1,76 @@
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { User, LogOut, Search } from 'lucide-react';
-import brandLogo from '../assets/Roombaazi Final Logo.png';
-import { useRef, useState } from 'react';
+import { Link, useLocation } from "react-router-dom";
+import { User, ArrowRightToLine, Plus } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import brandLogo from "../assets/Roombaazi Final Logo.png";
+
+const routeAliases: Record<string, string[]> = {
+  browse: ["/browse", "/listings", "/listings/"],
+  properties: ["/my-properties", "/dashboard"],
+  post: ["/post-property", "/add-listing"],
+  profile: ["/profile"],
+};
+
+const matchAlias = (pathname: string, aliases: string[]) =>
+  aliases.some((alias) => pathname === alias || pathname.startsWith(alias));
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
   const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const isListings = location.pathname === '/listings';
-
-  const urlSearch = searchParams.get('search') || '';
-  const [localSearch, setLocalSearch] = useState(urlSearch);
-  const [prevUrlSearch, setPrevUrlSearch] = useState(urlSearch);
-  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Derived state: sync input when URL changes externally (e.g. Clear all)
-  if (prevUrlSearch !== urlSearch) {
-    setPrevUrlSearch(urlSearch);
-    setLocalSearch(urlSearch);
-  }
-
-  const fireDebounced = (value: string) => {
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    debounceTimer.current = setTimeout(() => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        if (value.trim()) {
-          next.set('search', value.trim());
-        } else {
-          next.delete('search');
-        }
-        next.set('page', '1');
-        return next;
-      }, { replace: true });
-    }, 400);
-  };
-
-  const isActive = (path: string) => location.pathname === path;
-
-  const profileCompletionPct = user
-    ? Math.round(
-        [
-          user.hasFullName,
-          user.hasEmail,
-          user.hasPhone,
-          user.hasGender,
-          user.hasAadhaar,
-          user.hasPhoto,
-        ].filter(Boolean).length /
-          6 *
-          100
-      )
-    : 0;
+  const { user, logout } = useAuth();
+  const isAuthenticated = Boolean(user);
 
   return (
-    <nav className="navbar">
-      <div className="navbar-container">
-        <Link to={user ? '/listings' : '/'} className="navbar-brand">
-          <img
-            src={brandLogo}
-            alt="Roombaazi"
-            className="navbar-brand-logo"
-          />
+    <header className="app-navbar">
+      <div className="app-navbar-inner">
+        <Link to={isAuthenticated ? "/browse" : "/"} className="brand-link">
+          <img className="brand-logo" src={brandLogo} alt="Roombaazi" />
         </Link>
 
-        {isListings && (
-          <div style={{ position: 'relative', flex: 1, maxWidth: 420, margin: '0 1rem' }}>
-            <Search size={14} style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-            <input
-              className="input-style"
-              style={{ paddingLeft: '2rem', fontSize: '0.82rem', height: '2.1rem', width: '100%' }}
-              placeholder="Search by area, colony or city..."
-              value={localSearch}
-              onChange={(e) => { setLocalSearch(e.target.value); fireDebounced(e.target.value); }}
-            />
-          </div>
-        )}
+        <nav className="nav-center" aria-label="Primary">
+          <Link
+            to={isAuthenticated ? "/browse" : "/"}
+            className={`nav-link ${matchAlias(location.pathname, routeAliases.browse) ? "active" : ""}`}
+          >
+            Browse
+          </Link>
+          <Link
+            to={isAuthenticated ? "/my-properties" : "/login"}
+            className={`nav-link ${matchAlias(location.pathname, routeAliases.properties) ? "active" : ""}`}
+          >
+            My Properties
+          </Link>
+        </nav>
 
-        <div className="navbar-links">
-          {user ? (
+        <div className="nav-actions">
+          {isAuthenticated ? (
             <>
-              <Link to="/listings" className={`nav-link ${isActive('/listings') ? 'active' : ''}`}>
-                Browse
+              <Link to="/post-property" className="btn btn-primary btn-sm">
+                <Plus size={18} />
+                Post Property
+                <span className="btn-free-tag">FREE</span>
               </Link>
-              <Link to="/dashboard" className={`nav-link ${isActive('/dashboard') ? 'active' : ''}`}>
-                My Properties
-              </Link>
-              <Link to="/add-listing" className="btn btn-primary btn-sm">
-                + Post Property
-              </Link>
-              <Link to="/profile" className={`nav-link profile-link-wrapper ${isActive('/profile') ? 'active' : ''}`}>
+              <Link
+                to="/profile"
+                className={`nav-link ${matchAlias(location.pathname, routeAliases.profile) ? "active" : ""}`}
+              >
                 <User size={18} />
                 Profile
-                {user && (
-                  <span className="profile-nudge-badge" title={profileCompletionPct < 100 ? 'Complete your profile!' : 'Profile complete'}>{profileCompletionPct}%</span>
-                )}
               </Link>
-              <button className="btn btn-outline btn-sm" onClick={logout}>
-                <LogOut size={16} />
-                Logout
+              <button className="icon-pill" onClick={() => void logout()} aria-label="Logout">
+                <ArrowRightToLine size={20} />
               </button>
             </>
           ) : (
             <>
               <Link to="/login" className="nav-link">
-                Login
+                Log In
               </Link>
-              <Link to="/register" className="btn btn-primary btn-sm">
-                Sign Up
+              <Link to="/signup" className="btn btn-primary btn-sm">
+                Create Account
               </Link>
             </>
           )}
         </div>
       </div>
-    </nav>
+    </header>
   );
 }
-

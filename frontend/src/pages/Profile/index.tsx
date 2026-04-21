@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Camera, Heart, Home, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Heart } from "lucide-react";
+import Navbar from "../../components/Navbar";
+import SiteFooter from "../../components/SiteFooter";
 import { ApiError, apiFetch } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import Navbar from "../../components/Navbar";
 import Skeleton from "../../components/Skeleton";
 
 type Profile = {
-  id: string;
   fullName: string | null;
   email: string | null;
   location: string | null;
@@ -28,6 +28,12 @@ type ProfilePayload = {
   gender: "Male" | "Female" | "Other" | "";
 };
 
+type FavoriteItem = {
+  listingId: string;
+  title: string;
+  coverPhotoUrl: string | null;
+};
+
 const emptyPayload: ProfilePayload = {
   fullName: "",
   email: "",
@@ -38,48 +44,36 @@ const emptyPayload: ProfilePayload = {
   gender: "",
 };
 
-type FavoriteItem = {
-  listingId: string;
-  title: string;
-  coverPhotoUrl: string | null;
-};
-
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { logout, refreshSession } = useAuth();
   const { showToast } = useToast();
   const [form, setForm] = useState<ProfilePayload>(emptyPayload);
-  const [aadhaarLocked, setAadhaarLocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  const initialForm = useRef<ProfilePayload>(emptyPayload);
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
-  const [favLoading, setFavLoading] = useState(true);
+  const [favoritesLoading, setFavoritesLoading] = useState(true);
+  const initialForm = useRef<ProfilePayload>(emptyPayload);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
     setErrorMsg("");
     try {
-      const data = await apiFetch<{ profile: Profile }>("/api/auth/profile", {
-        method: "GET",
-      });
-
-      const nextProfile = data.profile;
+      const data = await apiFetch<{ profile: Profile }>("/api/auth/profile", { method: "GET" });
       const nextPayload: ProfilePayload = {
-        fullName: nextProfile.fullName || "",
-        email: nextProfile.email || "",
-        location: nextProfile.location || "",
-        aadhaar: nextProfile.aadhaar || "",
-        phone: nextProfile.phone || "",
-        photo: nextProfile.photo || "",
-        gender: nextProfile.gender || "",
+        fullName: data.profile.fullName || "",
+        email: data.profile.email || "",
+        location: data.profile.location || "",
+        aadhaar: data.profile.aadhaar || "",
+        phone: data.profile.phone || "",
+        photo: data.profile.photo || "",
+        gender: data.profile.gender || "",
       };
       setForm(nextPayload);
       initialForm.current = nextPayload;
-      setAadhaarLocked(Boolean((nextProfile.aadhaar || "").trim()));
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         await logout();
         navigate("/login", { replace: true });
@@ -93,61 +87,37 @@ export default function ProfilePage() {
 
   useEffect(() => {
     void loadProfile();
+    apiFetch<{ items: FavoriteItem[] }>("/api/favorites", { method: "GET" })
+      .then((data) => setFavorites(Array.isArray(data.items) ? data.items : []))
+      .catch(() => setFavorites([]))
+      .finally(() => setFavoritesLoading(false));
   }, [loadProfile]);
 
-  useEffect(() => {
-    setFavLoading(true);
-    apiFetch<{ items: FavoriteItem[] }>("/api/favorites", { method: "GET" })
-      .then((data) => setFavorites(data.items))
-      .catch(() => setFavorites([]))
-      .finally(() => setFavLoading(false));
-  }, []);
-
-
   const handleSave = async () => {
-    const trimmedAadhaar = form.aadhaar.trim();
-    const trimmedPhone = form.phone.trim();
-    if (trimmedAadhaar && !/^\d{12}$/.test(trimmedAadhaar)) {
-      setErrorMsg("Aadhaar must be exactly 12 digits");
-      return;
-    }
-    if (trimmedPhone && !/^\d{10}$/.test(trimmedPhone)) {
-      setErrorMsg("Phone number must be exactly 10 digits");
-      return;
-    }
-
-    // Only send fields that actually changed
-    const changedFields: Partial<ProfilePayload> = {};
-    for (const key of Object.keys(form) as (keyof ProfilePayload)[]) {
-      if (form[key] !== initialForm.current[key]) {
-        (changedFields as Record<string, unknown>)[key] = form[key];
-      }
-    }
-    if (Object.keys(changedFields).length === 0) {
-      showToast("No changes to save", "info");
-      return;
-    }
-
     setSaving(true);
     setErrorMsg("");
     try {
-      const data = await apiFetch<{ message: string; profile: Profile }>("/api/auth/profile", {
+      const changedFields: Partial<ProfilePayload> = {};
+      (Object.keys(form) as (keyof ProfilePayload)[]).forEach((key) => {
+        if (form[key] !== initialForm.current[key]) {
+          (changedFields as Record<keyof ProfilePayload, ProfilePayload[keyof ProfilePayload]>)[key] = form[key];
+        }
+      });
+
+      if (Object.keys(changedFields).length === 0) {
+        showToast("No profile changes to save", "info");
+        return;
+      }
+
+      await apiFetch("/api/auth/profile", {
         method: "PATCH",
         body: JSON.stringify(changedFields),
       });
-      if ((data.profile?.aadhaar || "").trim()) {
-        setAadhaarLocked(true);
-      }
       initialForm.current = { ...initialForm.current, ...changedFields };
-      void refreshSession();
-      showToast(data.message || "Profile updated successfully", "success");
-    } catch (error: unknown) {
-      if (error instanceof ApiError && error.status === 401) {
-        await logout();
-        navigate("/login", { replace: true });
-        return;
-      }
-      setErrorMsg(error instanceof Error ? error.message : "Failed to save profile");
+      await refreshSession();
+      showToast("Profile updated", "success");
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Failed to update profile");
     } finally {
       setSaving(false);
     }
@@ -157,279 +127,201 @@ export default function ProfilePage() {
     const file = event.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    setErrorMsg("");
     try {
       const formData = new FormData();
       formData.append("image", file);
-      const data = await apiFetch<{ url: string }>("/api/uploads/image", {
+      const uploaded = await apiFetch<{ url: string }>("/api/uploads/image", {
         method: "POST",
         body: formData,
       });
-      // Persist photo URL to profile immediately
-      await apiFetch("/api/auth/profile", {
-        method: "PATCH",
-        body: JSON.stringify({ photo: data.url }),
-      });
-      setForm((prev) => ({ ...prev, photo: data.url }));
-      void refreshSession();
-      showToast("Photo uploaded successfully", "success");
-    } catch (error: unknown) {
-      setErrorMsg(error instanceof Error ? error.message : "Image upload failed");
+      setForm((prev) => ({ ...prev, photo: uploaded.url }));
+      showToast("Photo uploaded", "success");
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Failed to upload photo");
     } finally {
       setUploading(false);
       event.target.value = "";
     }
   };
 
-  const avatarFallback = (form.fullName || form.email || "U").trim().charAt(0).toUpperCase();
-
-  if (loading) {
-    return (
-      <>
-        <Navbar />
-        <div className="profile-container profile-page">
-          <div className="glass-card profile-header-card">
-            <div style={{ width: "100%" }}>
-              <Skeleton style={{ width: 140, height: 14, marginBottom: 10 }} />
-              <Skeleton style={{ width: 220, height: 28, marginBottom: 8 }} />
-              <Skeleton style={{ width: "60%", height: 16 }} />
-            </div>
-          </div>
-          <div className="glass-card profile-main-card">
-            <div className="profile-main-grid">
-              <div className="flex-col" style={{ alignItems: "center" }}>
-                <Skeleton style={{ width: 160, height: 160, borderRadius: "50%" }} />
-                <Skeleton style={{ width: "100%", height: 40, marginTop: "1rem" }} />
-              </div>
-              <div className="profile-form-grid">
-                {Array.from({ length: 8 }).map((_, idx) => (
-                  <Skeleton key={`profile-field-skeleton-${idx}`} style={{ width: "100%", height: 44 }} />
-                ))}
-                <Skeleton style={{ gridColumn: "1 / -1", width: "100%", height: 220 }} />
-              </div>
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  }
+  const avatarFallback = (form.fullName || form.email || "A").trim().charAt(0).toUpperCase();
 
   return (
-    <>
+    <div className="app-shell">
       <Navbar />
-      <div className="profile-container profile-page">
-        <div className="glass-card profile-header-card">
-          <div>
-            <p className="profile-eyebrow">Account Center</p>
-            <h2 style={{ marginBottom: "0.25rem", fontSize: "1.75rem" }}>My Profile</h2>
-            <p style={{ margin: 0 }}>Manage identity, contact details, and preferences.</p>
-          </div>
-          <div className="profile-status-chips">
-            <span className="badge badge-info">Verified Rental Profile</span>
-            {form.gender && <span className="badge badge-primary">{form.gender}</span>}
-          </div>
-        </div>
 
-      {errorMsg && (
-        <div className="glass-card text-center" style={{ color: "#ef4444", marginBottom: "1rem" }}>
-          {errorMsg}
-        </div>
-      )}
-      <div className="glass-card profile-main-card">
-        <div className="profile-main-grid">
-          <div className="flex-col" style={{ alignItems: "center" }}>
-            <div className="profile-avatar">
-              {form.photo.trim() ? (
-                <img
-                  src={form.photo}
-                  alt="Profile"
-                />
-              ) : (
-                avatarFallback
-              )}
-            </div>
-            <label className="btn btn-outline" style={{ cursor: "pointer", marginTop: "1rem", width: '100%' }}>
-              {uploading ? "Uploading..." : "Change Photo"}
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => void handlePhotoUpload(e)}
-                style={{ display: "none" }}
-                disabled={uploading}
-              />
-            </label>
-          </div>
-
-          <div className="profile-form-grid">
-            <div className="form-group">
-              <label>Full Name</label>
-              <input
-                type="text"
-                className="input-style"
-                value={form.fullName}
-                onChange={(e) => setForm((prev) => ({ ...prev, fullName: e.target.value }))}
-                placeholder="Your full name"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Email</label>
-              <input
-                type="email"
-                className="input-style"
-                value={form.email}
-                onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
-                placeholder="you@example.com"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Gender</label>
-              <select
-                className="input-style"
-                value={form.gender}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    gender: e.target.value as "Male" | "Female" | "Other" | "",
-                  }))
-                }
-              >
-                <option value="">Select gender</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Aadhaar</label>
-              <input
-                type="text"
-                className="input-style"
-                value={
-                  aadhaarLocked
-                    ? form.aadhaar.replace(/(\d{4})(\d{4})(\d{4})/, '$1-$2-$3')
-                    : form.aadhaar.replace(/(\d{4})(?=\d)/g, '$1-')
-                }
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, '').slice(0, 12);
-                  setForm((prev) => ({ ...prev, aadhaar: digits }));
-                }}
-                placeholder={aadhaarLocked ? "" : "XXXX-XXXX-XXXX"}
-                inputMode="numeric"
-                maxLength={14}
-                disabled={aadhaarLocked}
-              />
-              {!aadhaarLocked && (
-                <p style={{ margin: '0.3rem 0 0', fontSize: '0.78rem', fontStyle: 'italic', color: 'var(--text-muted)' }}>
-                  Your Aadhaar number is permanent — once saved it cannot be modified. Please verify it carefully before submitting.
-                </p>
-              )}
-            </div>
-
-            <div className="form-group">
-              <label>Phone Number</label>
-              <input
-                type="tel"
-                className="input-style"
-                value={form.phone}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    phone: e.target.value.replace(/\D/g, "").slice(0, 10),
-                  }))
-                }
-                placeholder="Phone number"
-                inputMode="numeric"
-                maxLength={10}
-              />
-            </div>
-
-            <div
-              className="flex-row"
-              style={{ justifyContent: "space-between", gridColumn: "1 / -1", marginTop: "0.5rem" }}
-            >
-              <div className="flex-row">
-                <button
-                  className="btn btn-primary"
-                  onClick={() => void handleSave()}
-                  disabled={saving || uploading}
-                >
-                  {saving ? "Updating..." : "Update Profile"}
-                </button>
+      <main className="page-shell">
+        <section className="page-section">
+          <div className="page-container">
+            <div className="profile-hero">
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 20, flexWrap: "wrap", alignItems: "start" }}>
+                <div>
+                  <p className="eyebrow" style={{ marginBottom: 12 }}>Account Center</p>
+                  <h1 style={{ fontSize: "3rem", lineHeight: 1.05, marginBottom: 10 }}>My Profile</h1>
+                  <p>Manage identity, contact details, and preferences.</p>
+                </div>
+                <span className="badge badge-verified">
+                  <ShieldCheck size={16} />
+                  Verified Rental Profile
+                </span>
               </div>
-           
             </div>
-          </div>
-        </div>
-      </div>
 
-      {/* ── Liked Properties ─────────────────────────────── */}
-      <div className="glass-card" style={{ marginTop: "1.5rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-          <Heart size={20} fill="currentColor" style={{ color: "#ef4444" }} />
-          <h3 style={{ margin: 0 }}>Liked Properties</h3>
-        </div>
-
-        {favLoading ? (
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={`fav-skel-${i}`} style={{ width: 140 }}>
-                <Skeleton style={{ width: 140, height: 100, borderRadius: "8px" }} />
-                <Skeleton style={{ width: "90%", height: 14, marginTop: "0.4rem" }} />
+            {loading ? (
+              <div className="surface-card profile-form-card">
+                <Skeleton style={{ height: 380, borderRadius: 24 }} />
               </div>
-            ))}
-          </div>
-        ) : favorites.length === 0 ? (
-          <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.9rem" }}>
-            You haven't liked any properties yet.
-          </p>
-        ) : (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
-            {favorites.map((fav) => (
-              <div
-                key={fav.listingId}
-                onClick={() => navigate(`/listings/${fav.listingId}`)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigate(`/listings/${fav.listingId}`); }}
-                style={{
-                  width: 140,
-                  cursor: "pointer",
-                  borderRadius: "10px",
-                  overflow: "hidden",
-                  border: "1px solid var(--border-color)",
-                  background: "var(--card-bg)",
-                  transition: "transform 0.15s",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-3px)")}
-                onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}
-              >
-                <div style={{ width: "100%", height: 100, overflow: "hidden", background: "var(--hover-bg)" }}>
-                  {fav.coverPhotoUrl ? (
-                    <img
-                      src={fav.coverPhotoUrl}
-                      alt={fav.title}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    />
+            ) : (
+              <>
+                {errorMsg ? <div className="error-banner">{errorMsg}</div> : null}
+
+                <div className="surface-card profile-form-card">
+                  <div className="profile-form-layout">
+                    <div className="avatar-block">
+                      <div className="avatar-circle">
+                        {form.photo ? <img src={form.photo} alt="Profile" /> : avatarFallback}
+                      </div>
+                      <label className="avatar-upload">
+                        <Camera size={18} />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(event) => void handlePhotoUpload(event)}
+                          style={{ display: "none" }}
+                          disabled={uploading}
+                        />
+                      </label>
+                      <button className="btn btn-ghost" type="button">
+                        {uploading ? "Uploading..." : "Change Photo"}
+                      </button>
+                    </div>
+
+                    <div>
+                      <div className="field-grid-2">
+                        <div className="field">
+                          <label>Full Name</label>
+                          <input
+                            className="input-style"
+                            value={form.fullName}
+                            onChange={(event) => setForm((prev) => ({ ...prev, fullName: event.target.value }))}
+                          />
+                        </div>
+                        <div className="field">
+                          <label>Email</label>
+                          <input
+                            className="input-style"
+                            value={form.email}
+                            onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                          />
+                        </div>
+                        <div className="field">
+                          <label>Gender</label>
+                          <select
+                            className="select-style"
+                            value={form.gender}
+                            onChange={(event) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                gender: event.target.value as ProfilePayload["gender"],
+                              }))
+                            }
+                          >
+                            <option value="">Select gender</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                        <div className="field">
+                          <label>Aadhaar</label>
+                          <input
+                            className="input-style"
+                            value={form.aadhaar ? form.aadhaar.replace(/(\d{4})(?=\d)/g, "$1-") : ""}
+                            onChange={(event) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                aadhaar: event.target.value.replace(/\D/g, "").slice(0, 12),
+                              }))
+                            }
+                            placeholder="XXXX-XXXX-XXXX"
+                            maxLength={14}
+                          />
+                          <span className="field-note">
+                            Your Aadhaar number is permanent once saved. Please verify carefully.
+                          </span>
+                        </div>
+                        <div className="field" style={{ gridColumn: "1 / -1" }}>
+                          <label>Phone Number</label>
+                          <input
+                            className="input-style"
+                            value={form.phone}
+                            onChange={(event) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                phone: event.target.value.replace(/\D/g, "").slice(0, 10),
+                              }))
+                            }
+                            placeholder="Phone number"
+                          />
+                        </div>
+                      </div>
+
+                      <button className="btn btn-dark" style={{ marginTop: 18 }} onClick={() => void handleSave()} disabled={saving}>
+                        {saving ? "Updating..." : "Update Profile"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="surface-card liked-properties-card" style={{ marginTop: 26 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+                    <Heart size={22} fill="currentColor" style={{ color: "#ef4444" }} />
+                    <h2 style={{ fontSize: "2rem" }}>Liked Properties</h2>
+                  </div>
+
+                  {favoritesLoading ? (
+                    <Skeleton style={{ height: 220, borderRadius: 22 }} />
+                  ) : favorites.length === 0 ? (
+                    <div className="request-empty">
+                      <div>
+                        <Home size={48} style={{ color: "var(--slate-600)", marginBottom: 14 }} />
+                        <h3 style={{ marginBottom: 8 }}>You haven't liked any properties yet</h3>
+                        <p>Tap the heart on any listing to save it here.</p>
+                      </div>
+                    </div>
                   ) : (
-                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "0.75rem" }}>
-                      No Image
+                    <div className="listing-grid">
+                      {favorites.map((favorite) => (
+                        <article
+                          key={favorite.listingId}
+                          className="listing-card"
+                          onClick={() => navigate(`/listings/${favorite.listingId}`)}
+                        >
+                          <div className="listing-card-image">
+                            {favorite.coverPhotoUrl ? (
+                              <img src={favorite.coverPhotoUrl} alt={favorite.title} />
+                            ) : (
+                              <div className="listing-card-placeholder">
+                                <Home size={66} />
+                                <span style={{ fontWeight: 700 }}>NO IMAGE YET</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="listing-card-content">
+                            <h3 className="listing-card-title">{favorite.title}</h3>
+                          </div>
+                        </article>
+                      ))}
                     </div>
                   )}
                 </div>
-                <div style={{ padding: "0.4rem 0.5rem" }}>
-                  <p style={{ margin: 0, fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {fav.title}
-                  </p>
-                </div>
-              </div>
-            ))}
+              </>
+            )}
           </div>
-        )}
-      </div>
+        </section>
+      </main>
+
+      <SiteFooter />
     </div>
-    </>
   );
 }

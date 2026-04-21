@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Plus, Pencil, Trash2, Inbox, CalendarDays, Users, MapPin } from "lucide-react";
+import Navbar from "../../components/Navbar";
+import SiteFooter from "../../components/SiteFooter";
 import { ApiError, apiFetch } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import Navbar from "../../components/Navbar";
 import Skeleton from "../../components/Skeleton";
 
 type Listing = {
@@ -22,12 +24,8 @@ type Listing = {
 type TenantConnection = {
   connectionId: string;
   tenantName: string;
-  tenantEmail: string | null;
-  tenantPhone: string | null;
-  tenantPhoto: string | null;
   listingTitle: string;
   status: "Pending" | "Accepted" | "Rejected";
-  isConnected: boolean;
   requestedAt: string;
 };
 
@@ -38,308 +36,304 @@ export default function Dashboard() {
   const [items, setItems] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-
   const [connections, setConnections] = useState<TenantConnection[]>([]);
   const [connectionsLoading, setConnectionsLoading] = useState(true);
-  const [actioningId, setActioningId] = useState<string | null>(null);
-
-  const loadMine = async () => {
-    setLoading(true);
-    setErrorMsg("");
-    try {
-      const data = await apiFetch<{ listings: Listing[] }>("/api/listings/mine", { method: "GET" });
-      setItems(Array.isArray(data.listings) ? data.listings : []);
-    } catch (error: unknown) {
-      if (error instanceof ApiError && error.status === 401) {
-        await logout();
-        navigate("/login", { replace: true });
-        return;
-      }
-      setErrorMsg(error instanceof Error ? error.message : "Failed to load your listings");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadConnections = async () => {
-    setConnectionsLoading(true);
-    try {
-      const data = await apiFetch<{ items: TenantConnection[] }>("/api/connections/landlord", { method: "GET" });
-      setConnections(Array.isArray(data.items) ? data.items : []);
-    } catch {
-      // silently ignore — not critical
-    } finally {
-      setConnectionsLoading(false);
-    }
-  };
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [processingConnectionId, setProcessingConnectionId] = useState<string | null>(null);
 
   useEffect(() => {
-    void loadMine();
-    void loadConnections();
-  }, []);
+    let active = true;
 
-  const handleDealDone = async (connectionId: string) => {
-    setActioningId(connectionId);
+    const load = async () => {
+      try {
+        const [listingsRes, connectionsRes] = await Promise.all([
+          apiFetch<{ listings: Listing[] }>("/api/listings/mine", { method: "GET" }),
+          apiFetch<{ items: TenantConnection[] }>("/api/connections/landlord", { method: "GET" }).catch(
+            () => ({ items: [] }),
+          ),
+        ]);
+
+        if (!active) return;
+        setItems(Array.isArray(listingsRes.listings) ? listingsRes.listings : []);
+        setConnections(Array.isArray(connectionsRes.items) ? connectionsRes.items : []);
+      } catch (error) {
+        if (!active) return;
+        if (error instanceof ApiError && error.status === 401) {
+          await logout();
+          navigate("/login", { replace: true });
+          return;
+        }
+        setErrorMsg(error instanceof Error ? error.message : "Failed to load your properties");
+      } finally {
+        if (active) {
+          setLoading(false);
+          setConnectionsLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      active = false;
+    };
+  }, [logout, navigate]);
+
+  const handleAcceptRequest = async (connectionId: string) => {
+    setProcessingConnectionId(connectionId);
     try {
       await apiFetch(`/api/connections/${connectionId}/deal-done`, { method: "PATCH" });
       setConnections((prev) =>
-        prev.map((c) => c.connectionId === connectionId ? { ...c, status: "Accepted", isConnected: true } : c)
+        prev.map((conn) =>
+          conn.connectionId === connectionId ? { ...conn, status: "Accepted" as const } : conn
+        )
       );
-      showToast("Deal confirmed! Tenant can now leave a review.", "success");
+      showToast("Tenant request accepted successfully", "success");
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Failed to confirm deal", "error");
+      showToast(error instanceof Error ? error.message : "Failed to accept request", "error");
     } finally {
-      setActioningId(null);
+      setProcessingConnectionId(null);
     }
   };
 
-  const handleDealClose = async (connectionId: string) => {
-    setActioningId(connectionId);
+  const handleRejectRequest = async (connectionId: string) => {
+    setProcessingConnectionId(connectionId);
     try {
       await apiFetch(`/api/connections/${connectionId}/deal-close`, { method: "PATCH" });
       setConnections((prev) =>
-        prev.map((c) => c.connectionId === connectionId ? { ...c, status: "Rejected", isConnected: false } : c)
+        prev.map((conn) =>
+          conn.connectionId === connectionId ? { ...conn, status: "Rejected" as const } : conn
+        )
       );
-      showToast("Request closed.", "success");
+      showToast("Tenant request rejected", "success");
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Failed to close request", "error");
+      showToast(error instanceof Error ? error.message : "Failed to reject request", "error");
     } finally {
-      setActioningId(null);
+      setProcessingConnectionId(null);
     }
   };
 
-  const handleDeleteConfirm = async (listingId: string) => {
-    setConfirmDeleteId(null);
+  const handleDelete = async (listingId: string) => {
     setDeletingId(listingId);
     try {
       await apiFetch(`/api/listings/${listingId}`, { method: "DELETE" });
       setItems((prev) => prev.filter((item) => item.listingId !== listingId));
-      showToast("Property deleted successfully", "success");
-    } catch (error: unknown) {
-      if (error instanceof ApiError && error.status === 401) {
-        await logout();
-        navigate("/login", { replace: true });
-        return;
-      }
+      showToast("Property deleted", "success");
+    } catch (error) {
       showToast(error instanceof Error ? error.message : "Failed to delete property", "error");
     } finally {
       setDeletingId(null);
     }
   };
 
+  const activeCount = items.length;
+
   return (
-    <>
+    <div className="app-shell">
       <Navbar />
-      <div className="listings-container">
-        <div className="glass-card" style={{ marginBottom: "1rem" }}>
-          <h2 style={{ marginBottom: "0.25rem" }}>My Properties</h2>
-          <p style={{ margin: 0, color: "var(--text-muted)" }}>
-            Open any listing to edit details.
-          </p>
-        </div>
 
-        {errorMsg && (
-          <div className="glass-card text-center" style={{ color: "#ef4444", marginBottom: "1rem" }}>
-            {errorMsg}
-          </div>
-        )}
-
-        <div className="listings-grid">
-          {loading
-            ? Array.from({ length: 6 }).map((_, idx) => (
-                <div key={`my-listing-skeleton-${idx}`} className="listing-card" style={{ padding: 0, overflow: "hidden" }}>
-                  <Skeleton style={{ width: "100%", aspectRatio: "4 / 3" }} />
-                  <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    <Skeleton style={{ width: "65%", height: 20 }} />
-                    <Skeleton style={{ width: "45%", height: 18 }} />
-                    <Skeleton style={{ width: "85%", height: 18 }} />
-                  </div>
+      <main className="page-shell">
+        <section className="page-section">
+          <div className="page-container">
+            <div className="dashboard-hero">
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 18, alignItems: "start", flexWrap: "wrap" }}>
+                <div>
+                  <p className="eyebrow" style={{ marginBottom: 10 }}>Owner Dashboard</p>
+                  <h1 style={{ fontSize: "3rem", lineHeight: 1.05, marginBottom: 10 }}>My Properties</h1>
+                  <p>Manage listings and respond to tenant requests.</p>
                 </div>
-              ))
-            : items.map((item) => (
-                <div key={item.listingId} className="listing-card">
-                  <div className="listing-card-image">
-                    {item.coverPhotoUrl ? (
-                      <img src={item.coverPhotoUrl} alt={item.title} />
-                    ) : (
-                      <div className="listing-card-placeholder">No Image</div>
-                    )}
-                  </div>
-                  <div className="listing-card-content">
-                    <div className="listing-card-price">
-                      ₹{Number(item.monthlyRent).toLocaleString("en-IN")}
-                      <span className="listing-card-price-label"> /month</span>
-                    </div>
-                    <h3 className="listing-card-title">{item.title}</h3>
-                    <p className="listing-card-location">
-                      {item.colony}, {item.city}
-                    </p>
-                    <p style={{ margin: "0 0 0.75rem", color: "var(--text-muted)", fontSize: "0.875rem" }}>
-                      {item.furnishingName} • {item.maxOccupants} occupants • Available{" "}
-                      {new Date(item.availableFrom).toLocaleDateString("en-IN")}
-                    </p>
-                    <button
-                      className="btn btn-primary w-full"
-                      onClick={() => navigate(`/listings/${item.listingId}`)}
-                    >
-                      Edit Property
-                    </button>
-                    <button
-                      className="btn btn-outline w-full"
-                      style={{ marginTop: "0.5rem", color: "#ef4444", borderColor: "#ef4444" }}
-                      onClick={() => setConfirmDeleteId(item.listingId)}
-                      disabled={deletingId === item.listingId}
-                    >
-                      {deletingId === item.listingId ? "Deleting..." : "Delete Property"}
-                    </button>
-                  </div>
-                </div>
-              ))}
-        </div>
-
-        {!loading && !errorMsg && items.length === 0 && (
-          <div className="glass-card text-center" style={{ marginTop: "1rem" }}>
-            You have not listed any property yet.
-          </div>
-        )}
-
-        {/* Tenant Connection Requests */}
-        <div className="glass-card" style={{ marginTop: "2rem", marginBottom: "1rem" }}>
-          <h2 style={{ marginBottom: "0.25rem" }}>Tenant Requests</h2>
-          <p style={{ margin: 0, color: "var(--text-muted)" }}>
-            Tenants who want to connect with you. Confirm a deal to let them leave a review.
-          </p>
-        </div>
-
-        {connectionsLoading ? (
-          <div className="listings-grid">
-            {Array.from({ length: 3 }).map((_, idx) => (
-              <div key={`conn-skeleton-${idx}`} className="glass-card" style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                <Skeleton style={{ width: "60%", height: 20 }} />
-                <Skeleton style={{ width: "80%", height: 18 }} />
-                <Skeleton style={{ width: "40%", height: 18 }} />
+                <button className="btn btn-primary" onClick={() => navigate("/post-property")}>
+                  <Plus size={18} />
+                  Post New
+                </button>
               </div>
-            ))}
-          </div>
-        ) : connections.length === 0 ? (
-          <div className="glass-card text-center">No tenant requests yet.</div>
-        ) : (
-          <div className="listings-grid">
-            {connections.map((conn) => (
-              <div key={conn.connectionId} className="glass-card" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                {/* Tenant avatar + name */}
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                  {conn.tenantPhoto ? (
-                    <img
-                      src={conn.tenantPhoto}
-                      alt={conn.tenantName}
-                      style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
-                    />
+
+              <div className="dashboard-metrics">
+                <div className="metric-card">
+                  <span>Active</span>
+                  <strong style={{ color: "var(--green-500)" }}>{activeCount}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Views (30d)</span>
+                  <strong>{activeCount ? "1,284" : "0"}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Requests</span>
+                  <strong>{connections.filter((item) => item.status === "Pending").length}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Rating</span>
+                  <strong>{activeCount ? "4.8" : "0.0"}</strong>
+                </div>
+              </div>
+            </div>
+
+            {errorMsg ? <div className="error-banner">{errorMsg}</div> : null}
+
+            <div className="listing-grid" style={{ marginBottom: 24 }}>
+              {loading ? (
+                <>
+                  {Array.from({ length: 2 }).map((_, index) => (
+                    <div key={`dashboard-skeleton-${index}`} className="surface-card dashboard-property-card">
+                      <Skeleton style={{ height: 360, borderRadius: 24 }} />
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <>
+                  {items.length > 0 ? (
+                    items.map((item) => (
+                      <article key={item.listingId} className="listing-card">
+                        <div className="listing-card-image dot-grid">
+                          <div className="listing-card-badges">
+                            <div className="listing-card-badges-left">
+                              <span className="badge badge-verified">Active</span>
+                            </div>
+                          </div>
+                          {item.coverPhotoUrl ? (
+                            <img src={item.coverPhotoUrl} alt={item.title} />
+                          ) : (
+                            <div className="listing-card-placeholder">
+                              <Inbox size={66} />
+                              <span style={{ fontWeight: 700 }}>NO IMAGE YET</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="listing-card-content">
+                          <div className="listing-card-price">
+                            ₹{item.monthlyRent.toLocaleString("en-IN")}
+                            <span>/month</span>
+                          </div>
+                          <h3 className="listing-card-title">{item.title}</h3>
+                          <div className="listing-card-location">
+                            <MapPin size={16} />
+                            {item.colony}, {item.city}
+                          </div>
+                          <div className="listing-card-meta" style={{ marginBottom: 18 }}>
+                            <span className="listing-card-meta-item">
+                              <Users size={14} />
+                              {item.maxOccupants} occupants
+                            </span>
+                            <span className="listing-card-meta-item">
+                              <CalendarDays size={14} />
+                              {new Date(item.availableFrom).toLocaleDateString("en-IN", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", gap: 10 }}>
+                            <button className="btn btn-dark btn-block" onClick={() => navigate(`/listings/${item.listingId}`)}>
+                              <Pencil size={16} />
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn-outline"
+                              style={{ color: "var(--red-500)", borderColor: "rgba(255,95,87,0.3)" }}
+                              onClick={() => void handleDelete(item.listingId)}
+                              disabled={deletingId === item.listingId}
+                            >
+                              <Trash2 size={16} />
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    ))
                   ) : (
-                    <div style={{
-                      width: 44, height: 44, borderRadius: "50%", background: "var(--brand-primary)",
-                      color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
-                      fontWeight: 700, fontSize: "1.125rem", flexShrink: 0,
-                    }}>
-                      {conn.tenantName.charAt(0).toUpperCase()}
+                    <div className="empty-dashed-card">
+                      <div>
+                        <div className="feature-icon" style={{ margin: "0 auto 18px" }}>
+                          <Plus size={22} />
+                        </div>
+                        <h3 style={{ marginBottom: 6 }}>Post your first property</h3>
+                        <p style={{ marginBottom: 18 }}>It's free and takes 3 minutes</p>
+                        <button className="btn btn-primary" onClick={() => navigate("/post-property")}>
+                          <Plus size={16} />
+                          Post Property
+                        </button>
+                      </div>
                     </div>
                   )}
-                  <div style={{ minWidth: 0 }}>
-                    <p style={{ margin: 0, fontWeight: 600, fontSize: "0.9375rem", color: "var(--text-primary)" }}>{conn.tenantName}</p>
-                    {conn.tenantEmail && <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{conn.tenantEmail}</p>}
-                    {conn.tenantPhone && <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--text-muted)" }}>{conn.tenantPhone}</p>}
+
+                  <div className="empty-dashed-card">
+                    <div>
+                      <div className="feature-icon" style={{ margin: "0 auto 18px" }}>
+                        <Plus size={22} />
+                      </div>
+                      <h3 style={{ marginBottom: 6 }}>Post another property</h3>
+                      <p>It's free and takes 3 minutes</p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="surface-card tenant-requests-card">
+              <h2 style={{ fontSize: "2rem", marginBottom: 6 }}>Tenant Requests</h2>
+              <p style={{ marginBottom: 24 }}>
+                Tenants who want to connect with you. Confirm a deal to let them leave a review.
+              </p>
+
+              {connectionsLoading ? (
+                <Skeleton style={{ height: 220, borderRadius: 20 }} />
+              ) : connections.length === 0 ? (
+                <div className="request-empty">
+                  <div>
+                    <Inbox size={48} style={{ color: "var(--slate-600)", marginBottom: 14 }} />
+                    <h3 style={{ marginBottom: 8 }}>No tenant requests yet</h3>
+                    <p>When tenants reach out, you'll see them here.</p>
                   </div>
                 </div>
-
-                {/* Listing + date */}
-                <div>
-                  <p style={{ margin: "0 0 0.25rem", fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-                    For: <span style={{ fontWeight: 500 }}>{conn.listingTitle}</span>
-                  </p>
-                  <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--text-muted)" }}>
-                    Requested {new Date(conn.requestedAt).toLocaleDateString("en-IN")}
-                  </p>
+              ) : (
+                <div className="checkbox-stack">
+                  {connections.map((connection) => (
+                    <div key={connection.connectionId} className="surface-card" style={{ padding: 18, borderRadius: 18 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+                        <div style={{ flex: 1 }}>
+                          <h3 style={{ fontSize: "1.05rem", marginBottom: 6 }}>{connection.tenantName}</h3>
+                          <p>{connection.listingTitle}</p>
+                        </div>
+                        
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                          <span className={`badge ${
+                            connection.status === "Accepted" ? "badge-verified" : connection.status === "Rejected" ? "badge-dark" : "badge-soft"
+                          }`}>
+                            {connection.status}
+                          </span>
+                          
+                          {connection.status === "Pending" && (
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <button
+                                className="btn btn-primary btn-sm"
+                                onClick={() => void handleAcceptRequest(connection.connectionId)}
+                                disabled={processingConnectionId === connection.connectionId}
+                              >
+                                {processingConnectionId === connection.connectionId ? "Accepting..." : "Accept"}
+                              </button>
+                              <button
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => void handleRejectRequest(connection.connectionId)}
+                                disabled={processingConnectionId === connection.connectionId}
+                              >
+                                {processingConnectionId === connection.connectionId ? "Rejecting..." : "Reject"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-
-                {/* Status badge */}
-                {conn.status === "Pending" && (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", padding: "0.25rem 0.65rem", borderRadius: "9999px", background: "#fffbeb", border: "1px solid #f59e0b", color: "#92400e", fontSize: "0.8125rem", fontWeight: 500 }}>
-                    Pending
-                  </span>
-                )}
-                {conn.status === "Accepted" && (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", padding: "0.25rem 0.65rem", borderRadius: "9999px", background: "#f0fdf4", border: "1px solid #86efac", color: "#166534", fontSize: "0.8125rem", fontWeight: 500 }}>
-                    Deal Confirmed
-                  </span>
-                )}
-                {conn.status === "Rejected" && (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", padding: "0.25rem 0.65rem", borderRadius: "9999px", background: "#fef2f2", border: "1px solid #fca5a5", color: "#991b1b", fontSize: "0.8125rem", fontWeight: 500 }}>
-                    Closed
-                  </span>
-                )}
-
-                {/* Action buttons */}
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                  <button
-                    className="btn btn-outline"
-                    style={{ flex: 1, fontSize: "0.875rem", padding: "0.5rem" }}
-                    onClick={() => void handleDealClose(conn.connectionId)}
-                    disabled={actioningId === conn.connectionId || conn.status === "Rejected"}
-                  >
-                    Deal Close
-                  </button>
-                  <button
-                    className="btn btn-primary"
-                    style={{ flex: 1, fontSize: "0.875rem", padding: "0.5rem" }}
-                    onClick={() => void handleDealDone(conn.connectionId)}
-                    disabled={actioningId === conn.connectionId || conn.isConnected}
-                  >
-                    {conn.isConnected ? "Deal Done ✓" : "Deal Done"}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {confirmDeleteId && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-        >
-          <div className="glass-card" style={{ maxWidth: 400, width: "90%", textAlign: "center" }}>
-            <h3 style={{ marginBottom: "0.75rem" }}>Delete Property?</h3>
-            <p style={{ marginBottom: "1.25rem", color: "var(--text-muted)" }}>
-              This action cannot be undone. The listing will be permanently removed from public view.
-            </p>
-            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center" }}>
-              <button
-                className="btn btn-outline"
-                onClick={() => setConfirmDeleteId(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn btn-primary"
-                style={{ background: "#ef4444", borderColor: "#ef4444" }}
-                onClick={() => void handleDeleteConfirm(confirmDeleteId)}
-              >
-                Yes, Delete
-              </button>
+              )}
             </div>
           </div>
-        </div>
-      )}
-    </>
+        </section>
+      </main>
+
+      <SiteFooter />
+    </div>
   );
 }
