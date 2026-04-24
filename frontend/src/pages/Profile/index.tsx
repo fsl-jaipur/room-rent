@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, Heart, Home, ShieldCheck } from "lucide-react";
+import { Camera, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar";
 import SiteFooter from "../../components/SiteFooter";
@@ -29,11 +29,6 @@ type ProfilePayload = {
   gender: "Male" | "Female" | "Other" | "";
 };
 
-type FavoriteItem = {
-  listingId: string;
-  title: string;
-  coverPhotoUrl: string | null;
-};
 
 const emptyPayload: ProfilePayload = {
   fullName: "",
@@ -61,10 +56,7 @@ export default function ProfilePage() {
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [isAadhaarLocked, setIsAadhaarLocked] = useState(false);
-  const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
-  const [favoritesLoading, setFavoritesLoading] = useState(true);
   const initialForm = useRef<ProfilePayload>(emptyPayload);
-  const favoritePreview = favorites.slice(0, 3);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -97,10 +89,6 @@ export default function ProfilePage() {
 
   useEffect(() => {
     void loadProfile();
-    apiFetch<{ items: FavoriteItem[] }>("/api/favorites", { method: "GET" })
-      .then((data) => setFavorites(Array.isArray(data.items) ? data.items : []))
-      .catch(() => setFavorites([]))
-      .finally(() => setFavoritesLoading(false));
   }, [loadProfile]);
 
   const handleSave = async () => {

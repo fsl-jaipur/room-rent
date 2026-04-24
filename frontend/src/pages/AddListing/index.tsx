@@ -179,7 +179,7 @@ export default function AddListing() {
       if (patch.maxOccupants !== undefined) {
         const maxOccupants = Number(updated.maxOccupants);
         if (maxOccupants > 0) {
-          const newTiers = [];
+          const newTiers: { occupants: number; rent: number | "" }[] = [];
           for (let i = 1; i <= maxOccupants; i++) {
             const existingTier = room.rentTiers.find(tier => tier.occupants === i);
             newTiers.push({
@@ -258,7 +258,7 @@ export default function AddListing() {
         room.propertyTypeId === "" ||
         room.floorLevelId === "" ||
         room.maxOccupants === "" ||
-        !maxOccupantsRent || maxOccupantsRent === "" ||
+        !maxOccupantsRent || Number(maxOccupantsRent) === 0 ||
         room.furnishingTypeId === "" ||
         room.foodPreferenceId === "" ||
         room.coolingTypeId === "" ||

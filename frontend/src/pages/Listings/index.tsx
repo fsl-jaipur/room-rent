@@ -85,7 +85,6 @@ export default function ListingsPage() {
   const [items, setItems] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
-  const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
@@ -223,7 +222,6 @@ export default function ListingsPage() {
         const data = await apiFetch<ListingsResponse>(queryPath, { method: "GET" });
         if (!active) return;
         setItems(Array.isArray(data.items) ? data.items : []);
-        setTotal(data.total ?? 0);
         setTotalPages(Math.max(1, data.totalPages ?? 1));
       } catch (error) {
         if (!active) return;
