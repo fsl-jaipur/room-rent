@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { User, ArrowRightToLine, Plus, Heart, Menu, X } from "lucide-react";
+import { User, ArrowRightToLine, Plus, Heart, Menu, X, Inbox } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import brandLogo from "../../assets/Roombaazi Final Logo.png";
 
 const routeAliases: Record<string, string[]> = {
   browse: ["/browse", "/listings", "/listings/"],
   properties: ["/my-properties", "/dashboard"],
+  contacted: ["/contacted-properties"],
   post: ["/post-property", "/add-listing"],
   liked: ["/liked-properties"],
   profile: ["/profile"],
@@ -140,6 +141,12 @@ export default function Navbar() {
             >
               My Properties
             </Link>
+            <Link
+              to={isAuthenticated ? "/contacted-properties" : "/login"}
+              className={`nav-link ${matchAlias(location.pathname, routeAliases.contacted) ? "active" : ""}`}
+            >
+              Contacted
+            </Link>
           </nav>
 
           {/* Desktop Actions */}
@@ -223,6 +230,14 @@ export default function Navbar() {
                     <Plus size={20} />
                     Post Property
                     <span className="mobile-free-tag">FREE</span>
+                  </Link>
+                  <Link
+                    to="/contacted-properties"
+                    className={`mobile-nav-link ${matchAlias(location.pathname, routeAliases.contacted) ? "active" : ""}`}
+                    onClick={handleMenuItemClick}
+                  >
+                    <Inbox size={20} />
+                    Contacted Properties
                   </Link>
                   <Link
                     to="/liked-properties"

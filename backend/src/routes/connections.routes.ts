@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   connectOwner,
   getMyConnectionStatus,
+  getTenantConnections,
   getLandlordConnections,
   dealDone,
   dealClose,
@@ -14,6 +15,7 @@ const router = Router();
 router.use(requireAuth);
 
 router.post("/", connectOwner);                              // Tenant: connect to a listing's owner
+router.get("/mine", getTenantConnections);                  // Tenant: see all contacted listings
 router.get("/my-status/:listingId", getMyConnectionStatus); // Tenant: check their status for a listing
 router.get("/landlord", getLandlordConnections);             // Landlord: see all connection requests
 router.patch("/:id/deal-done", dealDone);                   // Landlord: mark deal done → isConnected = true

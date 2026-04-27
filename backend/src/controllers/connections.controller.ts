@@ -115,6 +115,60 @@ export const getMyConnectionStatus = async (
   }
 };
 
+// GET /api/connections/mine
+// Tenant sees every property they have contacted
+export const getTenantConnections = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const tenantId = (req as any).user?.id;
+    if (!tenantId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const connections = await ContactRequest.find({
+      tenantId: new mongoose.Types.ObjectId(tenantId),
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const listingIds = [...new Set(connections.map((c) => String(c.listingId)))];
+    const listings = await Listing.find({ _id: { $in: listingIds } })
+      .select("title colony city monthlyRent maxOccupants photos isActive")
+      .lean();
+
+    const listingMap = new Map(listings.map((listing) => [String(listing._id), listing]));
+
+    const items = connections.map((connection) => {
+      const listing = listingMap.get(String(connection.listingId));
+      const coverPhoto = listing?.photos?.[0]?.photoUrl ?? null;
+
+      return {
+        connectionId: String(connection._id),
+        listingId: String(connection.listingId),
+        title: listing?.title ?? "Listing unavailable",
+        colony: listing?.colony ?? "Unknown area",
+        city: listing?.city ?? "Unknown city",
+        monthlyRent: listing?.monthlyRent ?? 0,
+        maxOccupants: listing?.maxOccupants ?? 0,
+        coverPhotoUrl: coverPhoto,
+        status: connection.status,
+        isConnected: connection.isConnected,
+        requestedAt: connection.createdAt.toISOString(),
+        respondedAt: connection.respondedAt ? connection.respondedAt.toISOString() : null,
+        listingActive: listing?.isActive ?? false,
+      };
+    });
+
+    res.status(200).json({ items });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // GET /api/connections/landlord
 // Landlord sees all tenants who clicked "Connect Owner" on their listings
 export const getLandlordConnections = async (

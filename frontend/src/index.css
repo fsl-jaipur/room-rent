@@ -419,6 +419,22 @@ select.select-style::-ms-expand {
   box-shadow: 0 0 0 4px rgba(255, 154, 61, 0.16);
 }
 
+.input-style.input-error,
+.textarea-style.input-error,
+.select-style.input-error,
+.ui-select.input-error .ui-select-trigger {
+  border-color: rgba(239, 68, 68, 0.7);
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.16), 0 12px 24px rgba(239, 68, 68, 0.08);
+}
+
+.input-style.input-error:focus,
+.textarea-style.input-error:focus,
+.select-style.input-error:focus,
+.ui-select.input-error .ui-select-trigger:focus {
+  border-color: rgba(239, 68, 68, 0.88);
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.18), 0 12px 24px rgba(239, 68, 68, 0.1);
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -434,6 +450,54 @@ select.select-style::-ms-expand {
 .field-note {
   font-size: 0.83rem;
   color: var(--slate-600);
+}
+
+.form-error-summary {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(239, 68, 68, 0.24);
+  background: rgba(239, 68, 68, 0.08);
+  color: #b42318;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.password-rules {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.password-rule {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.password-rule.invalid {
+  color: #dc2626;
+}
+
+.password-rule.valid {
+  color: #16a34a;
+}
+
+.occupant-icon-group,
+.occupant-pill-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.occupant-icon-group {
+  color: var(--navy-800);
+}
+
+.occupant-pill-icons {
+  color: currentColor;
 }
 
 .field-grid-2 {
@@ -469,8 +533,7 @@ select.select-style::-ms-expand {
   z-index: 50;
   background: var(--surface);
   border-bottom: 1px solid var(--border-color);
-  transition: background 0.28s cubic-bezier(0.2, 0.9, 0.2, 1), border-color 0.28s cubic-bezier(0.2, 0.9, 0.2, 1),
-    box-shadow 0.28s cubic-bezier(0.2, 0.9, 0.2, 1);
+  transition: background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
 }
 
 .app-navbar-inner {
@@ -481,9 +544,8 @@ select.select-style::-ms-expand {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  transition: min-height 0.28s cubic-bezier(0.2, 0.9, 0.2, 1), gap 0.28s cubic-bezier(0.2, 0.9, 0.2, 1);
-  will-change: min-height;
-  overflow: hidden;
+  padding: 10px 0;
+  transition: min-height 0.22s ease, gap 0.22s ease, padding 0.22s ease;
 }
 
 .brand-link {
@@ -495,7 +557,8 @@ select.select-style::-ms-expand {
 .brand-logo {
   height: 42px;
   width: auto;
-  transition: height 0.28s cubic-bezier(0.2, 0.9, 0.2, 1);
+  transform-origin: center left;
+  transition: transform 0.22s ease;
 }
 
 .nav-center {
@@ -517,7 +580,7 @@ select.select-style::-ms-expand {
   font-weight: 700;
   font-size: 0.92rem;
   color: var(--slate-700);
-  transition: min-height 0.28s cubic-bezier(0.2, 0.9, 0.2, 1), padding 0.28s cubic-bezier(0.2, 0.9, 0.2, 1),
+  transition: min-height 0.22s ease, padding 0.22s ease,
     border-radius 0.28s cubic-bezier(0.2, 0.9, 0.2, 1), background 0.18s ease, color 0.18s ease;
   white-space: nowrap;
   flex-shrink: 0;
@@ -819,10 +882,11 @@ select.select-style::-ms-expand {
 .app-navbar.is-compact .app-navbar-inner {
   min-height: 68px;
   gap: 14px;
+  padding: 6px 0;
 }
 
 .app-navbar.is-compact .brand-logo {
-  height: 34px;
+  transform: scale(0.82);
 }
 
 .app-navbar.is-compact .nav-link {

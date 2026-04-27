@@ -61,11 +61,11 @@ export default function FilterSidebar({
       </div>
 
       <div className="filter-section">
-        <span className="filter-label">Budget</span>
+        <span className="filter-label">Rent</span>
 
         <div className="range-row">
           <div className="range-row-header">
-            <span>Min Rent</span>
+            <span>Min</span>
             <strong>₹{filters.minRent.toLocaleString("en-IN")}</strong>
           </div>
           <input
@@ -86,7 +86,7 @@ export default function FilterSidebar({
 
         <div className="range-row">
           <div className="range-row-header">
-            <span>Max Rent</span>
+            <span>Max</span>
             <strong>₹{filters.maxRent.toLocaleString("en-IN")}</strong>
           </div>
           <input
@@ -121,7 +121,7 @@ export default function FilterSidebar({
                 })
               }
             >
-              {option.label}
+              <span>{option.label}</span>
             </button>
           ))}
         </div>

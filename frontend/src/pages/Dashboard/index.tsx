@@ -154,6 +154,17 @@ export default function Dashboard() {
 
   const activeCount = items.length;
 
+  const renderOccupants = (count: number, keyPrefix: string) => (
+    <>
+      <span className="occupant-icon-group" aria-hidden="true">
+        {Array.from({ length: Math.min(Math.max(count, 1), 4) }, (_, index) => (
+          <Users key={`${keyPrefix}-${index}`} size={14} />
+        ))}
+      </span>
+      <span>{count} {count === 1 ? "occupant" : "occupants"}</span>
+    </>
+  );
+
   return (
     <div className="app-shell">
       <Navbar />
@@ -304,8 +315,7 @@ export default function Dashboard() {
                           </div>
                           <div className="listing-card-meta" style={{ marginBottom: 18 }}>
                             <span className="listing-card-meta-item">
-                              <Users size={14} />
-                              {item.maxOccupants} occupants
+                              {renderOccupants(item.maxOccupants, item.listingId)}
                             </span>
                             <span className="listing-card-meta-item">
                               <CalendarDays size={14} />

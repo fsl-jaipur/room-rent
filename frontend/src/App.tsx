@@ -12,6 +12,7 @@ import ForgotPassword from "./pages/ForgotPassword/index";
 import ResetPassword from "./pages/ResetPassword/index";
 import ProfilePage from "./pages/Profile/index";
 import LikedPropertiesPage from "./pages/LikedProperties/index";
+import ContactedPropertiesPage from "./pages/ContactedProperties/index";
 import Skeleton from "./components/Skeleton";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -91,6 +92,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <LikedPropertiesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/contacted-properties"
+        element={
+          <ProtectedRoute>
+            <ContactedPropertiesPage />
           </ProtectedRoute>
         }
       />
