@@ -3,6 +3,16 @@ import { GoogleMapsService } from "../services/googleMaps.service";
 import { ListingsService } from "../services/listings.service";
 import { BlobService } from "../services/blob.service.js";
 
+// Import our query parsing utilities  
+import {
+  parseNumberArray,
+  parseStringArray,
+  parseBooleanArray,
+  parseGenderArray,
+  parseInteger,
+  parseSortBy,
+} from "../utils/queryParsers.js";
+
 const hasValidCoords = (coords?: { latitude?: number; longitude?: number }): coords is { latitude: number; longitude: number } =>
   Number.isFinite(coords?.latitude) && Number.isFinite(coords?.longitude);
 
@@ -44,67 +54,55 @@ const resolveFullLocation = async (
   return null;
 };
 
+/**
+ * SIMPLIFIED GET ALL LISTINGS - Using query utilities
+ */
 export const getAllListings = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const parseNumberList = (value: unknown): number[] | undefined => {
-      if (typeof value !== "string" || value.trim() === "") return undefined;
-      const list = value
-        .split(",")
-        .map((item) => Number(item.trim()))
-        .filter((item) => Number.isFinite(item));
-      return list.length > 0 ? list : undefined;
-    };
-
-    const parseBooleanList = (value: unknown): boolean[] | undefined => {
-      if (typeof value !== "string" || value.trim() === "") return undefined;
-      const list = value
-        .split(",")
-        .map((item) => item.trim().toLowerCase())
-        .filter((item) => item === "true" || item === "false")
-        .map((item) => item === "true");
-      return list.length > 0 ? list : undefined;
-    };
-
-    const parseStringList = (value: unknown): string[] | undefined => {
-      if (typeof value !== "string" || value.trim() === "") return undefined;
-      const list = value
-        .split(",")
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0);
-      return list.length > 0 ? list : undefined;
-    };
-
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
 
-    const result = await ListingsService.getAllListings(page, limit, {
+    // Use our simple query parsing utilities
+    const filters = {
       search: typeof req.query.search === "string" ? req.query.search : undefined,
       city: typeof req.query.city === "string" ? req.query.city : undefined,
       minRent: Number.isFinite(Number(req.query.minRent)) ? Number(req.query.minRent) : undefined,
       maxRent: Number.isFinite(Number(req.query.maxRent)) ? Number(req.query.maxRent) : undefined,
-      maxOccupants: parseNumberList(req.query.maxOccupants),
-      floorLevelId: parseNumberList(req.query.floorLevelId),
-      furnishingTypeId: parseNumberList(req.query.furnishingTypeId),
-      foodPreferenceId: parseNumberList(req.query.foodPreferenceId),
-      coolingTypeId: parseNumberList(req.query.coolingTypeId),
-      propertyTypeId: parseNumberList(req.query.propertyTypeId),
-      gender: parseStringList(req.query.gender),
-      allowSmoking: parseBooleanList(req.query.allowSmoking),
-      sortBy:
-        req.query.sortBy === "rent_asc" ||
-        req.query.sortBy === "rent_desc" ||
-        req.query.sortBy === "newest"
-          ? req.query.sortBy
-          : "newest",
-    });
+      maxOccupants: parseNumberArray(req.query.maxOccupants as string).length > 0 
+        ? parseNumberArray(req.query.maxOccupants as string) 
+        : undefined,
+      floorLevelId: parseNumberArray(req.query.floorLevelId as string).length > 0 
+        ? parseNumberArray(req.query.floorLevelId as string) 
+        : undefined,
+      furnishingTypeId: parseNumberArray(req.query.furnishingTypeId as string).length > 0 
+        ? parseNumberArray(req.query.furnishingTypeId as string) 
+        : undefined,
+      foodPreferenceId: parseNumberArray(req.query.foodPreferenceId as string).length > 0 
+        ? parseNumberArray(req.query.foodPreferenceId as string) 
+        : undefined,
+      coolingTypeId: parseNumberArray(req.query.coolingTypeId as string).length > 0 
+        ? parseNumberArray(req.query.coolingTypeId as string) 
+        : undefined,
+      propertyTypeId: parseNumberArray(req.query.propertyTypeId as string).length > 0 
+        ? parseNumberArray(req.query.propertyTypeId as string) 
+        : undefined,
+      gender: parseStringArray(req.query.gender as string).length > 0 
+        ? parseStringArray(req.query.gender as string) 
+        : undefined,
+      allowSmoking: parseBooleanArray(req.query.allowSmoking as string).length > 0 
+        ? parseBooleanArray(req.query.allowSmoking as string) 
+        : undefined,
+      sortBy: parseSortBy(req.query.sortBy as string),
+    };
 
+    const result = await ListingsService.getAllListings(page, limit, filters);
     const { items, total } = result;
+    
     console.log("[GET /api/listings] total:", total, "| items returned:", items.length);
-    console.log("[GET /api/listings] items:", JSON.stringify(items, null, 2));
 
     res.status(200).json({
       page,

@@ -254,16 +254,8 @@ export default function Dashboard() {
                   <strong style={{ color: "var(--green-500)" }}>{activeCount}</strong>
                 </div>
                 <div className="metric-card">
-                  <span>Views (30d)</span>
-                  <strong>{activeCount ? "1,284" : "0"}</strong>
-                </div>
-                <div className="metric-card">
                   <span>Requests</span>
                   <strong>{connections.filter((item) => item.status === "Pending").length}</strong>
-                </div>
-                <div className="metric-card">
-                  <span>Rating</span>
-                  <strong>{activeCount ? "4.8" : "0.0"}</strong>
                 </div>
               </div>
             </div>

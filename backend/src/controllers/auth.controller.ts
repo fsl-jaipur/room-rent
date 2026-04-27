@@ -1,44 +1,45 @@
 import type { Request, Response } from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 import { Resend } from "resend";
+import env from "../config/env.js";
 import User from "../models/User.js";
 import PasswordResetRequest from "../models/PasswordResetRequest.js";
-import env from "../config/env.js";
-
-// type UserRole = "Landlord" | "Tenant";
-// const ALLOWED_ROLES: UserRole[] = ["Landlord", "Tenant"];
-type UserGender = "Male" | "Female" | "Other";
+import {
+  escapeHtml,
+  isNonEmptyString,
+  isValidEmail,
+  isValidGender,
+  isValidPassword,
+  normalizeEmail,
+  normalizeFullName,
+  normalizePhone,
+} from "../utils/validators.js";
+import {
+  ErrorResponses,
+  handleDuplicateError,
+} from "../utils/errorHelpers.js";
+import {
+  clearAuthCookie,
+  getUserPublicData,
+  sendAuthCookie,
+} from "../utils/jwtHelpers.js";
 
 const googleClient = new OAuth2Client();
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 const RESET_OTP_TTL_MINUTES = 10;
 const OTP_RESEND_LIMIT = 3;
-const OTP_RESEND_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+const OTP_RESEND_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-const isNonEmptyString = (value: unknown): value is string =>
-  typeof value === "string" && value.trim().length > 0;
-
-const normalizeEmail = (value: string): string => value.trim().toLowerCase();
 const sha256Hex = (value: string) =>
   crypto.createHash("sha256").update(value).digest("hex");
 
-const escapeHtml = (value: string): string =>
-  value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-
-const normalizeGender = (value: unknown): UserGender | null => {
-  if (typeof value !== "string") return null;
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "male") return "Male";
-  if (normalized === "female") return "Female";
-  return null;
+const generateGooglePhonePlaceholder = (): string => {
+  const randomDigits = `${Date.now()}${Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, "0")}`.slice(-14);
+  return `G${randomDigits}`;
 };
 
 const buildResetPasswordEmailHtml = (otpCode: string, resetLink: string) => `
@@ -100,94 +101,52 @@ const buildResetPasswordEmailHtml = (otpCode: string, resetLink: string) => `
 </html>
 `;
 
-const generateGooglePhonePlaceholder = (): string => {
-  const randomDigits = `${Date.now()}${Math.floor(Math.random() * 1000)
-    .toString()
-    .padStart(3, "0")}`.slice(-14);
-  return `G${randomDigits}`;
-};
-
-const sendAuthCookie = (
-  res: Response,
-  user: { _id: unknown; email?: string | null },
-) => {
-  const id = String(user._id);
-  const email = user.email ?? "";
-  // const role = user.role ?? "Tenant";
-
-  const token = jwt.sign({ id, email }, env.JWT_SECRET, { expiresIn: "7d" });
-
-
-  res.cookie("jwt", token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  });
-
-  return token;
-};
-
-// Helper to check if a MongoDB error is a duplicate key error
-const isDuplicateKeyError = (error: unknown): { field: string } | null => {
-  if (typeof error !== "object" || error === null) return null;
-  const mongoErr = error as {
-    code?: number;
-    keyPattern?: Record<string, unknown>;
-  };
-  if (mongoErr.code !== 11000) return null;
-  const keys = Object.keys(mongoErr.keyPattern || {});
-  return { field: keys[0] || "unknown" };
-};
-
 export const register = async (req: Request, res: Response): Promise<void> => {
   const { fullName, email, phone, password, gender } = req.body as {
     fullName?: unknown;
     email?: unknown;
     phone?: unknown;
     password?: unknown;
-    // role?: unknown;
     gender?: unknown;
   };
 
-  if (
-    !isNonEmptyString(fullName) ||
-    !isNonEmptyString(email) ||
-    !isNonEmptyString(phone) ||
-    !isNonEmptyString(password)
-  ) {
-    res
-      .status(400)
-      .json({ error: "Please provide fullName, email, phone, and password" });
+  if (!isNonEmptyString(fullName)) {
+    ErrorResponses.badRequest(res, "Full name is required");
+    return;
+  }
+  if (!isNonEmptyString(email) || !isValidEmail(email)) {
+    ErrorResponses.badRequest(res, "Valid email is required");
+    return;
+  }
+  if (!isNonEmptyString(phone)) {
+    ErrorResponses.badRequest(res, "Phone number is required");
+    return;
+  }
+  if (!isNonEmptyString(password) || !isValidPassword(password)) {
+    ErrorResponses.badRequest(res, "Password must be at least 6 characters");
+    return;
+  }
+  if (!isValidGender(gender)) {
+    ErrorResponses.badRequest(res, "Gender must be Male, Female, or Other");
     return;
   }
 
+  const normalizedFullName = normalizeFullName(fullName);
   const normalizedEmail = normalizeEmail(email);
-  const normalizedPhone = phone.trim();
-  const normalizedFullName = fullName.trim();
-  // const normalizedRole: UserRole =
-  //   typeof role === "string" && ALLOWED_ROLES.includes(role as UserRole)
-  //     ? (role as UserRole)
-  //     : "Tenant";
-  const normalizedGender = normalizeGender(gender);
-
-  if (gender !== undefined && normalizedGender === null) {
-    res.status(400).json({ error: "Gender must be Male, Female, or Other" });
-    return;
-  }
+  const normalizedPhone = normalizePhone(phone);
 
   try {
-    // Check for existing user
     const existingUser = await User.findOne({
       $or: [{ email: normalizedEmail }, { phone: normalizedPhone }],
     }).lean();
 
     if (existingUser) {
       if (existingUser.email === normalizedEmail) {
-        res.status(409).json({ error: "Email already registered" });
-      } else {
-        res.status(409).json({ error: "Phone already registered" });
+        ErrorResponses.emailExists(res);
+        return;
       }
+
+      ErrorResponses.phoneExists(res);
       return;
     }
 
@@ -199,39 +158,24 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       email: normalizedEmail,
       phone: normalizedPhone,
       passwordHash,
-      // role: normalizedRole,
-      gender: normalizedGender ?? undefined,
+      gender,
       isVerified: false,
     });
 
-    const regToken = sendAuthCookie(res, user);
+    const token = sendAuthCookie(res, user);
 
     res.status(201).json({
       message: "Registration successful",
-      token: regToken,
-      user: {
-        id: user._id,
-        email: user.email,
-        gender: user.gender ?? null,
-      },
+      token,
+      user: getUserPublicData(user),
     });
   } catch (error) {
-    const dup = isDuplicateKeyError(error);
-    if (dup) {
-      if (dup.field === "email") {
-        res.status(409).json({ error: "Email already registered" });
-        return;
-      }
-      if (dup.field === "phone") {
-        res.status(409).json({ error: "Phone already registered" });
-        return;
-      }
-      res.status(409).json({ error: "Account already exists" });
+    if (handleDuplicateError(error, res)) {
       return;
     }
 
     console.error("Registration Error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    ErrorResponses.internal(res);
   }
 };
 
@@ -242,7 +186,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   };
 
   if (!isNonEmptyString(email) || !isNonEmptyString(password)) {
-    res.status(400).json({ error: "Please provide email and password" });
+    ErrorResponses.badRequest(res, "Please provide email and password");
     return;
   }
 
@@ -250,42 +194,33 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
   try {
     const user = await User.findOne({ email: normalizedEmail });
-    // console.log("user", user);
 
-    if (!user) {
-      res.status(401).json({ error: "Invalid credentials" });
+    if (!user || !user.passwordHash) {
+      ErrorResponses.invalidCredentials(res);
       return;
     }
 
     if (!user.isActive) {
-      res.status(403).json({ error: "Account is deactivated" });
-      return;
-    }
-
-    if (!user.passwordHash) {
-      res.status(401).json({ error: "Invalid credentials" });
+      ErrorResponses.accountDeactivated(res);
       return;
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      res.status(401).json({ error: "Invalid credentials3" });
+      ErrorResponses.invalidCredentials(res);
       return;
     }
 
-    const loginToken = sendAuthCookie(res, user);
+    const token = sendAuthCookie(res, user);
 
     res.status(200).json({
       message: "Login successful",
-      token: loginToken,
-      user: {
-        id: user._id,
-        email: user.email
-      },
+      token,
+      user: getUserPublicData(user),
     });
   } catch (error) {
     console.error("Login Error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    ErrorResponses.internal(res);
   }
 };
 
@@ -294,6 +229,7 @@ export const forgotPassword = async (
   res: Response,
 ): Promise<void> => {
   const { email } = req.body as { email?: unknown };
+
   if (!isNonEmptyString(email)) {
     res.status(400).json({ error: "Email is required" });
     return;
@@ -311,34 +247,31 @@ export const forgotPassword = async (
 
     if (!user || !user.email) {
       if (env.BYPASS_RESET_EMAIL) {
-        res
-          .status(404)
-          .json({ error: "No active account found for this email" });
+        res.status(404).json({ error: "No active account found for this email" });
         return;
       }
+
       res.status(200).json({ message: genericMessage });
       return;
     }
 
-    const otpCode = `${Math.floor(100000 + Math.random() * 900000)}`;
-
-    // ── OTP resend rate limit ──────────────────────────────────────────
     const windowStart = user.otpResendWindowStart;
     const windowExpired =
-      !windowStart ||
-      Date.now() - windowStart.getTime() > OTP_RESEND_WINDOW_MS;
+      !windowStart || Date.now() - windowStart.getTime() > OTP_RESEND_WINDOW_MS;
 
     if (windowExpired) {
-      // Start a fresh 24-hour window
       await User.updateOne(
         { _id: user._id },
-        { otpResendCount: 1, otpResendWindowStart: new Date() }
+        { otpResendCount: 1, otpResendWindowStart: new Date() },
       );
     } else if (user.otpResendCount >= OTP_RESEND_LIMIT) {
-      const windowEndsAt = new Date(windowStart!.getTime() + OTP_RESEND_WINDOW_MS);
-      const hoursLeft = Math.ceil(
-        (windowEndsAt.getTime() - Date.now()) / (60 * 60 * 1000)
+      const windowEndsAt = new Date(
+        windowStart.getTime() + OTP_RESEND_WINDOW_MS,
       );
+      const hoursLeft = Math.ceil(
+        (windowEndsAt.getTime() - Date.now()) / (60 * 60 * 1000),
+      );
+
       res.status(429).json({
         error: `You have reached the maximum OTP request limit (${OTP_RESEND_LIMIT} requests). Please try again in ${hoursLeft} hour${hoursLeft !== 1 ? "s" : ""}.`,
       });
@@ -346,21 +279,18 @@ export const forgotPassword = async (
     } else {
       await User.updateOne({ _id: user._id }, { $inc: { otpResendCount: 1 } });
     }
-    // ──────────────────────────────────────────────────────────────────
+
+    const otpCode = `${Math.floor(100000 + Math.random() * 900000)}`;
     const resetToken = crypto.randomBytes(32).toString("hex");
     const otpHash = sha256Hex(otpCode);
     const tokenHash = sha256Hex(resetToken);
-    const resetLink = `${env.CLIENT_URL.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(
-      resetToken,
-    )}&email=${encodeURIComponent(user.email)}`;
+    const resetLink = `${env.CLIENT_URL.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(resetToken)}&email=${encodeURIComponent(user.email)}`;
 
-    // Invalidate previous unused requests
     await PasswordResetRequest.updateMany(
       { userId: user._id, usedAt: null },
       { usedAt: new Date() },
     );
 
-    // Create new reset request
     await PasswordResetRequest.create({
       userId: user._id,
       email: user.email,
@@ -396,12 +326,10 @@ export const forgotPassword = async (
 
     if (sendResult.error) {
       console.error("Resend send failed:", JSON.stringify(sendResult.error));
-      // Roll back the resend count increment since the email didn't go out
-      await User.updateOne(
-        { _id: user._id },
-        { $inc: { otpResendCount: -1 } }
-      );
-      res.status(500).json({ error: "Unable to send reset email right now. Please try again later." });
+      await User.updateOne({ _id: user._id }, { $inc: { otpResendCount: -1 } });
+      res.status(500).json({
+        error: "Unable to send reset email right now. Please try again later.",
+      });
       return;
     }
 
@@ -470,10 +398,10 @@ export const resetPassword = async (
     }
 
     const otpValid = hasOtp
-      ? sha256Hex((otpCode as string).trim()) === resetRecord.otpHash
+      ? sha256Hex(otpCode.trim()) === resetRecord.otpHash
       : false;
     const tokenValid = hasToken
-      ? sha256Hex((token as string).trim()) === resetRecord.tokenHash
+      ? sha256Hex(token.trim()) === resetRecord.tokenHash
       : false;
 
     if (!otpValid && !tokenValid) {
@@ -485,17 +413,13 @@ export const resetPassword = async (
     const passwordHash = await bcrypt.hash(trimmedPassword, salt);
 
     await User.updateOne({ _id: user._id }, { passwordHash });
-
-    // Invalidate all pending reset requests for this user
     await PasswordResetRequest.updateMany(
       { userId: user._id, usedAt: null },
       { usedAt: new Date() },
     );
-
-    // Reset the OTP resend counter so the user can request again if needed
     await User.updateOne(
       { _id: user._id },
-      { otpResendCount: 0, otpResendWindowStart: null }
+      { otpResendCount: 0, otpResendWindowStart: null },
     );
 
     res.status(200).json({ message: "Password reset successful" });
@@ -541,50 +465,34 @@ export const googleLogin = async (
       return;
     }
 
-    // Check if user exists
     const existingUser = await User.findOne({ email });
-
     if (existingUser) {
       if (!existingUser.isActive) {
         res.status(403).json({ error: "Account is deactivated" });
         return;
       }
 
-      const googleLoginToken = sendAuthCookie(res, existingUser);
+      const token = sendAuthCookie(res, existingUser);
       res.status(200).json({
         message: "Google login successful",
-        token: googleLoginToken,
-        user: {
-          id: existingUser._id,
-          email: existingUser.email,
-          // role: existingUser.role,
-          gender: existingUser.gender ?? null,
-        },
+        token,
+        user: getUserPublicData(existingUser),
       });
       return;
     }
 
-    // Create new user
     const createdUser = await User.create({
       fullName,
       email,
       phone: generateGooglePhonePlaceholder(),
-      // role: "Tenant",
       isVerified: true,
     });
 
-    const googleSignupToken = sendAuthCookie(res, createdUser);
-
+    const token = sendAuthCookie(res, createdUser);
     res.status(201).json({
       message: "Google signup successful",
-      token: googleSignupToken,
-      user: {
-        id: createdUser._id,
-        email: createdUser.email,
-        // role: createdUser.role,
-        gender: createdUser.gender ?? null,
-        
-      },
+      token,
+      user: getUserPublicData(createdUser),
     });
   } catch (error) {
     console.error("Google login Error:", error);
@@ -594,7 +502,7 @@ export const googleLogin = async (
 
 export const me = async (req: Request, res: Response): Promise<void> => {
   if (!req.user?.id) {
-    res.status(401).json({ error: "Unauthorized" });
+    ErrorResponses.unauthorized(res);
     return;
   }
 
@@ -602,34 +510,18 @@ export const me = async (req: Request, res: Response): Promise<void> => {
     const user = await User.findById(req.user.id).lean();
 
     if (!user || !user.isActive) {
-      res.status(401).json({ error: "Unauthorized" });
+      ErrorResponses.unauthorized(res);
       return;
     }
 
-    res.status(200).json({
-      user: {
-        id: user._id,
-        email: user.email ?? null,
-        gender: user.gender ?? null,
-        hasFullName: Boolean(user.fullName?.trim()),
-        hasEmail: Boolean(user.email?.trim()),
-        hasPhone: Boolean(user.phone?.trim()),
-        hasGender: Boolean(user.gender),
-        hasPhoto: Boolean(user.photoUrl),
-        hasAadhaar: Boolean(user.aadhaarEncrypted),
-      },
-    });
+    res.status(200).json({ user: getUserPublicData(user) });
   } catch (error) {
     console.error("Auth me Error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    ErrorResponses.internal(res);
   }
 };
 
 export const logout = (_req: Request, res: Response): void => {
-  res.clearCookie("jwt", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
-  });
+  clearAuthCookie(res);
   res.status(200).json({ message: "Logged out successfully" });
 };
