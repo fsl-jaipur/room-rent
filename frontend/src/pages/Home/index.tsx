@@ -9,7 +9,6 @@ import {
   Star,
   MapPin,
 } from "lucide-react";
-import Navbar from "../../components/Navbar";
 import SiteFooter from "../../components/SiteFooter";
 import ListingCard from "../../components/ListingCard";
 import Skeleton from "../../components/Skeleton";
@@ -74,8 +73,6 @@ export default function Home() {
 
   return (
     <div className="app-shell">
-      <Navbar />
-
       <main className="page-shell">
         <section className="hero-panel dot-grid hero-gradient">
           <div className="page-container home-hero">
