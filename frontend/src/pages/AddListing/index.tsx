@@ -15,8 +15,6 @@ type LocationOption = {
 
 type RoomForm = {
   id: string;
-  propertyTypeId: number | "";
-  floorLevelId: number | "";
   maxOccupants: number | "";
   monthlyRent: number | "";
   rentTiers: { occupants: number; rent: number | "" }[];
@@ -93,8 +91,6 @@ const SECURITY_DEPOSIT_TYPE_OPTIONS = [
 
 const createRoom = (): RoomForm => ({
   id: crypto.randomUUID(),
-  propertyTypeId: "",
-  floorLevelId: "",
   maxOccupants: "",
   monthlyRent: "",
   rentTiers: [],
@@ -123,6 +119,8 @@ export default function AddListing() {
   const [pincode, setPincode] = useState("");
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationOptions, setLocationOptions] = useState<LocationOption[]>([]);
+  const [propertyTypeId, setPropertyTypeId] = useState<number | "">("");
+  const [floorLevelId, setFloorLevelId] = useState<number | "">("");
   const [rooms, setRooms] = useState<RoomForm[]>([createRoom()]);
   const [exteriorFile, setExteriorFile] = useState<File | null>(null);
   const [exteriorPreview, setExteriorPreview] = useState("");
@@ -244,19 +242,21 @@ export default function AddListing() {
   };
 
   const validateRooms = () => {
+    if (propertyTypeId === "") return "Please select a Property Type.";
+    if (floorLevelId === "") return "Please select a Floor Level.";
+
+    const isPG = Number(propertyTypeId) === 1;
+    const isIndividual = Number(propertyTypeId) === 2;
+    const isFlat = Number(propertyTypeId) === 3;
+    const needsAdvanced = isPG || isIndividual || isFlat;
+
     for (const room of rooms) {
-      const isPG = Number(room.propertyTypeId) === 1;
-      const isIndividual = Number(room.propertyTypeId) === 2;
-      const isFlat = Number(room.propertyTypeId) === 3;
-      const needsAdvanced = isPG || isIndividual || isFlat;
       const maxOccupants = Number(room.maxOccupants);
       
       // Check if rent for max occupants is set
       const maxOccupantsRent = room.rentTiers.find(tier => tier.occupants === maxOccupants)?.rent;
       
       if (
-        room.propertyTypeId === "" ||
-        room.floorLevelId === "" ||
         room.maxOccupants === "" ||
         !maxOccupantsRent || Number(maxOccupantsRent) === 0 ||
         room.furnishingTypeId === "" ||
@@ -299,7 +299,7 @@ export default function AddListing() {
         exteriorPhotoUrl: "",
         roomPhotoUrls: rooms.map((room) => room.roomImagePreviews.map(() => "")),
         rooms: rooms.map((room) => ({
-          ...(Number(room.propertyTypeId) === 1 || Number(room.propertyTypeId) === 2 || Number(room.propertyTypeId) === 3
+          ...(Number(propertyTypeId) === 1 || Number(propertyTypeId) === 2 || Number(propertyTypeId) === 3
             ? (() => {
                 const monthly = Number(room.monthlyRent) || 0;
                 const depositType = room.securityDepositType;
@@ -334,8 +334,8 @@ export default function AddListing() {
                 singleBedCount: Number(room.maxOccupants) === 1 ? 1 : 0,
                 doubleBedCount: Number(room.maxOccupants) > 1 ? 1 : 0,
               }),
-          propertyTypeId: Number(room.propertyTypeId),
-          floorLevelId: Number(room.floorLevelId),
+          propertyTypeId: Number(propertyTypeId),
+          floorLevelId: Number(floorLevelId),
           maxOccupants: Number(room.maxOccupants),
           monthlyRent: Number(room.monthlyRent),
           furnishingTypeId: Number(room.furnishingTypeId),
@@ -440,6 +440,7 @@ export default function AddListing() {
                       options={areaSelectOptions}
                       placeholder="Select area"
                       aria-label="Select area"
+                      searchable
                     />
                   </div>
                   <div className="field">
@@ -451,6 +452,7 @@ export default function AddListing() {
                       placeholder={area ? "Select colony" : "Select area first"}
                       aria-label="Select colony"
                       disabled={!area}
+                      searchable
                     />
                   </div>
                   <div className="field" style={{ gridColumn: "1 / -1" }}>
@@ -485,6 +487,33 @@ export default function AddListing() {
                   </button>
                 </div>
 
+                {/* Common fields shared across all rooms */}
+                <div className="form-panel" style={{ marginBottom: 22 }}>
+                  <h3 style={{ fontSize: "1.1rem", marginBottom: 16 }}>Property Details (applies to all rooms)</h3>
+                  <div className="field-grid-2">
+                    <div className="field">
+                      <label>Property Type *</label>
+                      <Select
+                        value={propertyTypeId === "" ? "" : String(propertyTypeId)}
+                        onChange={(next) => setPropertyTypeId(next ? Number(next) : "")}
+                        options={PROPERTY_TYPE_OPTIONS}
+                        placeholder="Select property type"
+                        aria-label="Property type"
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Floor Level *</label>
+                      <Select
+                        value={floorLevelId === "" ? "" : String(floorLevelId)}
+                        onChange={(next) => setFloorLevelId(next ? Number(next) : "")}
+                        options={FLOOR_LEVEL_OPTIONS}
+                        placeholder="Select floor"
+                        aria-label="Floor level"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {rooms.map((room, roomIndex) => (
                   <div key={room.id} className="form-panel" style={{ marginBottom: 22 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", marginBottom: 18 }}>
@@ -499,9 +528,9 @@ export default function AddListing() {
 
                     <div className="field-grid-2">
                       {(() => {
-                        const isPG = Number(room.propertyTypeId) === 1;
-                        const isIndividual = Number(room.propertyTypeId) === 2;
-                        const isFlat = Number(room.propertyTypeId) === 3;
+                        const isPG = Number(propertyTypeId) === 1;
+                        const isIndividual = Number(propertyTypeId) === 2;
+                        const isFlat = Number(propertyTypeId) === 3;
                         const needsAdvanced = isPG || isIndividual || isFlat;
                         const monthly = Number(room.monthlyRent) || 0;
                         const depositPreview =
@@ -517,35 +546,6 @@ export default function AddListing() {
 
                         return (
                           <>
-                      <div className="field">
-                        <label>Property Type *</label>
-                        <Select
-                          value={room.propertyTypeId === "" ? "" : String(room.propertyTypeId)}
-                          onChange={(next) =>
-                            updateRoom(room.id, {
-                              propertyTypeId: next ? Number(next) : "",
-                              ...(next !== "1" && next !== "2" && next !== "3"
-                                ? { bedType: "", securityDepositType: "", securityDepositAmount: "", foodLevelId: "" }
-                                : {}),
-                            })
-                          }
-                          options={PROPERTY_TYPE_OPTIONS}
-                          placeholder="Select property type"
-                          aria-label="Property type"
-                        />
-                      </div>
-
-                      <div className="field">
-                        <label>Floor Level *</label>
-                        <Select
-                          value={room.floorLevelId === "" ? "" : String(room.floorLevelId)}
-                          onChange={(next) => updateRoom(room.id, { floorLevelId: next ? Number(next) : "" })}
-                          options={FLOOR_LEVEL_OPTIONS}
-                          placeholder="Select floor"
-                          aria-label="Floor level"
-                        />
-                      </div>
-
                       <div className="field">
                         <label>Max Occupants *</label>
                         <Select
@@ -575,7 +575,7 @@ export default function AddListing() {
                         />
                       </div>
 
-                      {/* Dynamic Rent Tiers for Lower Occupancy - Only show after selecting max occupants */}
+                      {/* Dynamic Rent Tiers for Lower Occupancy */}
                       {room.maxOccupants && Number(room.maxOccupants) > 1 ? (
                         <div style={{ gridColumn: "1 / -1" }}>
                           <div className="field-grid-2">
@@ -780,7 +780,10 @@ export default function AddListing() {
                                 type="file"
                                 accept="image/*"
                                 style={{ display: "none" }}
-                                onChange={(event) => handleRoomImage(room.id, imageIndex, event.target.files?.[0] ?? null)}
+                                onChange={(event) => {
+                                  handleRoomImage(room.id, imageIndex, event.target.files?.[0] ?? null);
+                                  event.target.value = "";
+                                }}
                               />
                             </label>
                           ))}

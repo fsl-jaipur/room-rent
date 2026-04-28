@@ -404,15 +404,6 @@ export default function ListingDetailsPage() {
       <Navbar />
 
       <main className="page-shell">
-        <section className="hero-panel hero-gradient">
-          <div className="page-container" style={{ padding: "36px 0 34px" }}>
-            <button className="btn btn-outline btn-sm" onClick={() => navigate("/browse")}>
-              <ArrowLeft size={16} />
-              Back to Listings
-            </button>
-          </div>
-        </section>
-
         <section className="page-section">
           <div className="page-container">
             {loading ? (
