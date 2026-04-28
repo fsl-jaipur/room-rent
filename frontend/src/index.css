@@ -1610,6 +1610,11 @@ select.select-style::-ms-expand {
   gap: 14px;
 }
 
+.upload-grid-error .upload-card:not(.has-image) {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.04);
+}
+
 .upload-card {
   min-height: 108px;
   border: 1px dashed #cbd7e4;

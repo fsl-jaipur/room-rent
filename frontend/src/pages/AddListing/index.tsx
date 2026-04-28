@@ -23,6 +23,8 @@ type RoomForm = {
   foodLevelId: number | "";
   coolingTypeId: number | "";
   bedType: "Single" | "Double" | "Mixed" | "";
+  singleBedCount: number | "";
+  doubleBedCount: number | "";
   securityDepositType: "none" | "one_month" | "two_month" | "custom" | "";
   securityDepositAmount: number | "";
   availableFrom: string;
@@ -43,6 +45,7 @@ const FLOOR_LEVEL_OPTIONS = [
   { value: "2", label: "1st Floor" },
   { value: "3", label: "2nd Floor" },
   { value: "4", label: "3rd Floor" },
+  { value: "5", label: "Roof" },
 ];
 
 const MAX_OCCUPANTS_OPTIONS = [
@@ -99,6 +102,8 @@ const createRoom = (): RoomForm => ({
   foodLevelId: "",
   coolingTypeId: "",
   bedType: "",
+  singleBedCount: "",
+  doubleBedCount: "",
   securityDepositType: "",
   securityDepositAmount: "",
   availableFrom: "",
@@ -126,6 +131,8 @@ export default function AddListing() {
   const [exteriorPreview, setExteriorPreview] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [step1Submitted, setStep1Submitted] = useState(false);
+  const [step2Submitted, setStep2Submitted] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -213,6 +220,7 @@ export default function AddListing() {
   };
 
   const handleStepOne = async () => {
+    setStep1Submitted(true);
     if (!houseNo.trim() || !area || !colony || !/^\d{6}$/.test(pincode)) {
       setErrorMsg("Please fill all required location fields.");
       return;
@@ -264,6 +272,8 @@ export default function AddListing() {
         room.coolingTypeId === "" ||
         ((isPG || isFlat) && room.foodLevelId === "") ||
         (needsAdvanced && room.bedType === "") ||
+        (needsAdvanced && (room.bedType === "Single" || room.bedType === "Mixed") && room.singleBedCount === "") ||
+        (needsAdvanced && (room.bedType === "Double" || room.bedType === "Mixed") && room.doubleBedCount === "") ||
         (needsAdvanced && room.securityDepositType === "") ||
         (needsAdvanced && room.securityDepositType === "custom" && room.securityDepositAmount === "") ||
         !room.availableFrom ||
@@ -282,6 +292,7 @@ export default function AddListing() {
   };
 
   const handleSubmit = async () => {
+    setStep2Submitted(true);
     const validationError = validateRooms();
     if (validationError) {
       setErrorMsg(validationError);
@@ -317,10 +328,10 @@ export default function AddListing() {
                 const bedType = room.bedType || (Number(room.maxOccupants) > 1 ? "Double" : "Single");
                 const beds =
                   bedType === "Single"
-                    ? { singleBedCount: 1, doubleBedCount: 0 }
+                    ? { singleBedCount: Number(room.singleBedCount) || 1, doubleBedCount: 0 }
                     : bedType === "Double"
-                      ? { singleBedCount: 0, doubleBedCount: 1 }
-                      : { singleBedCount: 1, doubleBedCount: 1 };
+                      ? { singleBedCount: 0, doubleBedCount: Number(room.doubleBedCount) || 1 }
+                      : { singleBedCount: Number(room.singleBedCount) || 1, doubleBedCount: Number(room.doubleBedCount) || 1 };
 
                 return {
                   bedType,
@@ -423,7 +434,7 @@ export default function AddListing() {
                 <div className="field-grid-2">
                   <div className="field">
                     <label>House No. *</label>
-                    <input className="input-style" value={houseNo} onChange={(e) => setHouseNo(e.target.value)} placeholder="e.g. 24/7 or A123" />
+                    <input className={`input-style${step1Submitted && !houseNo.trim() ? " input-error" : ""}`} value={houseNo} onChange={(e) => setHouseNo(e.target.value)} placeholder="e.g. 24/7 or A123" />
                   </div>
                   <div className="field">
                     <label>Landmark (Optional)</label>
@@ -441,6 +452,7 @@ export default function AddListing() {
                       placeholder="Select area"
                       aria-label="Select area"
                       searchable
+                      className={step1Submitted && !area ? "input-error" : ""}
                     />
                   </div>
                   <div className="field">
@@ -453,12 +465,13 @@ export default function AddListing() {
                       aria-label="Select colony"
                       disabled={!area}
                       searchable
+                      className={step1Submitted && !colony ? "input-error" : ""}
                     />
                   </div>
                   <div className="field" style={{ gridColumn: "1 / -1" }}>
                     <label>Pincode *</label>
                     <input
-                      className="input-style"
+                      className={`input-style${step1Submitted && !/^\d{6}$/.test(pincode) ? " input-error" : ""}`}
                       value={pincode}
                       onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                       placeholder="e.g. 302017"
@@ -499,6 +512,7 @@ export default function AddListing() {
                         options={PROPERTY_TYPE_OPTIONS}
                         placeholder="Select property type"
                         aria-label="Property type"
+                        className={step2Submitted && propertyTypeId === "" ? "input-error" : ""}
                       />
                     </div>
                     <div className="field">
@@ -509,6 +523,7 @@ export default function AddListing() {
                         options={FLOOR_LEVEL_OPTIONS}
                         placeholder="Select floor"
                         aria-label="Floor level"
+                        className={step2Submitted && floorLevelId === "" ? "input-error" : ""}
                       />
                     </div>
                   </div>
@@ -554,6 +569,7 @@ export default function AddListing() {
                           options={MAX_OCCUPANTS_OPTIONS}
                           placeholder="Select max occupants"
                           aria-label="Max occupants"
+                          className={step2Submitted && room.maxOccupants === "" ? "input-error" : ""}
                         />
                       </div>
 
@@ -561,7 +577,7 @@ export default function AddListing() {
                       <div className="field">
                         <label>Monthly Rent (₹) * {room.maxOccupants && Number(room.maxOccupants) > 0 ? <span style={{ color: "var(--text-secondary)" }}>for {room.maxOccupants} occupants</span> : null}</label>
                         <input
-                          className="input-style"
+                          className={`input-style${step2Submitted && !(room.rentTiers.find(t => t.occupants === Number(room.maxOccupants))?.rent) ? " input-error" : ""}`}
                           value={room.maxOccupants && Number(room.maxOccupants) > 0 ? (room.rentTiers.find(tier => tier.occupants === Number(room.maxOccupants))?.rent || "") : room.monthlyRent}
                           onChange={(e) => {
                             const value = e.target.value ? Number(e.target.value.replace(/\D/g, "")) : "";
@@ -606,6 +622,7 @@ export default function AddListing() {
                           options={FURNISHING_OPTIONS}
                           placeholder="Select furnishing"
                           aria-label="Furnishing"
+                          className={step2Submitted && room.furnishingTypeId === "" ? "input-error" : ""}
                         />
                       </div>
 
@@ -618,6 +635,7 @@ export default function AddListing() {
                             options={FOOD_LEVEL_OPTIONS}
                             placeholder="Select food level"
                             aria-label="Food level"
+                            className={step2Submitted && room.foodLevelId === "" ? "input-error" : ""}
                           />
                         </div>
                       ) : null}
@@ -627,10 +645,43 @@ export default function AddListing() {
                           <label>Bed Type *</label>
                           <Select
                             value={room.bedType}
-                            onChange={(next) => updateRoom(room.id, { bedType: next as RoomForm["bedType"] })}
+                            onChange={(next) => updateRoom(room.id, {
+                              bedType: next as RoomForm["bedType"],
+                              singleBedCount: "",
+                              doubleBedCount: "",
+                            })}
                             options={BED_TYPE_OPTIONS}
                             placeholder="Select bed type"
                             aria-label="Bed type"
+                            className={step2Submitted && !room.bedType ? "input-error" : ""}
+                          />
+                        </div>
+                      ) : null}
+
+                      {needsAdvanced && (room.bedType === "Single" || room.bedType === "Mixed") ? (
+                        <div className="field">
+                          <label>Single Bed Count *</label>
+                          <input
+                            className={`input-style${step2Submitted && room.singleBedCount === "" ? " input-error" : ""}`}
+                            type="number"
+                            min="1"
+                            value={room.singleBedCount}
+                            onChange={(e) => updateRoom(room.id, { singleBedCount: e.target.value ? Number(e.target.value.replace(/\D/g, "")) : "" })}
+                            placeholder="How many single beds in the room?"
+                          />
+                        </div>
+                      ) : null}
+
+                      {needsAdvanced && (room.bedType === "Double" || room.bedType === "Mixed") ? (
+                        <div className="field">
+                          <label>Double Bed Count *</label>
+                          <input
+                            className={`input-style${step2Submitted && room.doubleBedCount === "" ? " input-error" : ""}`}
+                            type="number"
+                            min="1"
+                            value={room.doubleBedCount}
+                            onChange={(e) => updateRoom(room.id, { doubleBedCount: e.target.value ? Number(e.target.value.replace(/\D/g, "")) : "" })}
+                            placeholder="How many double beds in the room?"
                           />
                         </div>
                       ) : null}
@@ -643,6 +694,7 @@ export default function AddListing() {
                           options={FOOD_PREFERENCE_OPTIONS}
                           placeholder="Select food preference"
                           aria-label="Food preference"
+                          className={step2Submitted && room.foodPreferenceId === "" ? "input-error" : ""}
                         />
                       </div>
 
@@ -654,6 +706,7 @@ export default function AddListing() {
                           options={COOLING_OPTIONS}
                           placeholder="Select cooling type"
                           aria-label="Cooling type"
+                          className={step2Submitted && room.coolingTypeId === "" ? "input-error" : ""}
                         />
                       </div>
 
@@ -673,6 +726,7 @@ export default function AddListing() {
                                 options={SECURITY_DEPOSIT_TYPE_OPTIONS}
                                 placeholder="Select deposit type"
                                 aria-label="Security deposit type"
+                                className={step2Submitted && !room.securityDepositType ? "input-error" : ""}
                               />
                               {room.securityDepositType && room.securityDepositType !== "custom" ? (
                                 <span className="field-note">Deposit: ₹{depositPreview.toLocaleString("en-IN")}</span>
@@ -682,7 +736,7 @@ export default function AddListing() {
                             {room.securityDepositType === "custom" ? (
                               <div className="field" style={{ gap: 8 }}>
                                 <input
-                                  className="input-style"
+                                  className={`input-style${step2Submitted && room.securityDepositAmount === "" ? " input-error" : ""}`}
                                   value={room.securityDepositAmount}
                                   onChange={(e) =>
                                     updateRoom(room.id, {
@@ -711,7 +765,7 @@ export default function AddListing() {
                       <div className="field">
                         <label>Available From *</label>
                         <input
-                          className="input-style"
+                          className={`input-style${step2Submitted && !room.availableFrom ? " input-error" : ""}`}
                           type="date"
                           value={room.availableFrom}
                           onChange={(e) => updateRoom(room.id, { availableFrom: e.target.value })}
@@ -746,7 +800,7 @@ export default function AddListing() {
                       <div className="field" style={{ gridColumn: "1 / -1" }}>
                         <label>Description *</label>
                         <textarea
-                          className="textarea-style"
+                          className={`textarea-style${step2Submitted && !room.description.trim() ? " input-error" : ""}`}
                           value={room.description}
                           onChange={(e) => updateRoom(room.id, { description: e.target.value })}
                           placeholder="Add highlights of this property"
@@ -755,7 +809,7 @@ export default function AddListing() {
 
                       <div className="field" style={{ gridColumn: "1 / -1" }}>
                         <label>Room Images (up to 3, at least 1 required) *</label>
-                        <div className="upload-grid">
+                        <div className={`upload-grid${step2Submitted && !room.roomImages.some(Boolean) ? " upload-grid-error" : ""}` }>
                           {room.roomImagePreviews.map((preview, imageIndex) => (
                             <label key={`${room.id}-${imageIndex}`} className={`upload-card ${preview ? "has-image" : ""}`}>
                               {preview ? <img src={preview} alt={`Room ${roomIndex + 1} ${imageIndex + 1}`} /> : null}
@@ -799,7 +853,7 @@ export default function AddListing() {
                 <div className="form-panel">
                   <div className="field">
                     <label>Exterior Image *</label>
-                    <div className="upload-grid" style={{ gridTemplateColumns: "minmax(0, 260px)" }}>
+                    <div className={`upload-grid${step2Submitted && !exteriorFile ? " upload-grid-error" : ""}`} style={{ gridTemplateColumns: "minmax(0, 260px)" }}>
                       <label className={`upload-card ${exteriorPreview ? "has-image" : ""}`}>
                         {exteriorPreview ? <img src={exteriorPreview} alt="Exterior" /> : null}
                         {!exteriorPreview ? (

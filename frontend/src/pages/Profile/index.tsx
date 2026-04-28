@@ -7,7 +7,6 @@ import { ApiError, apiFetch } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import Skeleton from "../../components/Skeleton";
-import Select from "../../components/Select";
 
 type Profile = {
   fullName: string | null;
@@ -39,12 +38,6 @@ const emptyPayload: ProfilePayload = {
   photo: "",
   gender: "",
 };
-
-const GENDER_OPTIONS = [
-  { value: "Male", label: "Male" },
-  { value: "Female", label: "Female" },
-  { value: "Other", label: "Other" },
-];
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -108,7 +101,7 @@ export default function ProfilePage() {
         return;
       }
 
-      await apiFetch("/api/auth/profile", {
+      const result = await apiFetch<{ emailSent?: boolean }>("/api/auth/profile", {
         method: "PATCH",
         body: JSON.stringify(changedFields),
       });
@@ -117,7 +110,11 @@ export default function ProfilePage() {
         setIsAadhaarLocked(true);
       }
       await refreshSession();
-      showToast("Profile updated", "success");
+      if (result?.emailSent) {
+        showToast("Profile updated. A verification email was sent to your new address.", "success");
+      } else {
+        showToast("Profile updated", "success");
+      }
     } catch (error) {
       setErrorMsg(error instanceof Error ? error.message : "Failed to update profile");
     } finally {
@@ -222,21 +219,31 @@ export default function ProfilePage() {
                             value={form.email}
                             onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
                           />
+                          {form.email !== initialForm.current.email && form.email.trim() ? (
+                            <span className="field-note" style={{ color: "#d97706" }}>
+                              A verification email will be sent to this new address on save.
+                            </span>
+                          ) : !authUser?.isVerified && form.email === initialForm.current.email && form.email.trim() ? (
+                            <span className="field-note" style={{ color: "#d97706" }}>
+                              Your email is not verified.
+                            </span>
+                          ) : null}
                         </div>
                         <div className="field">
                           <label>Gender</label>
-                          <Select
-                            value={form.gender}
-                            onChange={(next) =>
-                              setForm((prev) => ({
-                                ...prev,
-                                gender: next as ProfilePayload["gender"],
-                              }))
-                            }
-                            options={GENDER_OPTIONS}
-                            placeholder="Select gender"
-                            aria-label="Select gender"
-                          />
+                          <div className="radio-inline" style={{ minHeight: 56 }}>
+                            {(["Male", "Female", "Other"] as const).map((option) => (
+                              <label key={option} className="checkbox-item">
+                                <input
+                                  type="radio"
+                                  name="gender"
+                                  checked={form.gender === option}
+                                  onChange={() => setForm((prev) => ({ ...prev, gender: option }))}
+                                />
+                                <span>{option}</span>
+                              </label>
+                            ))}
+                          </div>
                         </div>
                         <div className="field">
                           <label>Aadhaar</label>
@@ -258,7 +265,7 @@ export default function ProfilePage() {
                           />
                           <span className="field-note">
                             {isAadhaarLocked
-                              ? "Aadhaar is locked and cannot be changed once saved."
+                              ? "Aadhaar, once saved cannot be changed."
                               : "Your Aadhaar number is permanent once saved. Please verify carefully."}
                           </span>
                         </div>
