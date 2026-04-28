@@ -18,6 +18,8 @@ export interface IUser extends Document {
   location?: { type: "Point"; coordinates: [number, number] };
   isVerified: boolean;
   isActive: boolean;
+  emailVerifyToken?: string;
+  emailVerifyExpires?: Date;
   otpResendCount: number;
   otpResendWindowStart?: Date;
   createdAt: Date;
@@ -49,6 +51,8 @@ const userSchema = new Schema<IUser>(
     },
     isVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
+    emailVerifyToken: { type: String },
+    emailVerifyExpires: { type: Date },
     otpResendCount: { type: Number, default: 0 },
     otpResendWindowStart: { type: Date },
   },

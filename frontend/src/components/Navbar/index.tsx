@@ -30,6 +30,7 @@ export default function Navbar() {
     Boolean(user?.hasGender),
     Boolean(user?.hasPhoto),
     Boolean(user?.hasAadhaar),
+    Boolean(user?.isVerified),
   ];
   const completedProfileFields = profileCompletionFields.filter(Boolean).length;
   const profileCompletionPercent = Math.round((completedProfileFields / profileCompletionFields.length) * 100);

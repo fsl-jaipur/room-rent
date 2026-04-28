@@ -10,6 +10,7 @@ import Login from "./pages/Login/index";
 import Register from "./pages/Register/index";
 import ForgotPassword from "./pages/ForgotPassword/index";
 import ResetPassword from "./pages/ResetPassword/index";
+import VerifyEmail from "./pages/VerifyEmail/index";
 import ProfilePage from "./pages/Profile/index";
 import LikedPropertiesPage from "./pages/LikedProperties/index";
 import ContactedPropertiesPage from "./pages/ContactedProperties/index";
@@ -43,6 +44,7 @@ function AppRoutes() {
       <Route path="/register" element={<Navigate to="/signup" replace />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
 
       <Route
         path="/browse"

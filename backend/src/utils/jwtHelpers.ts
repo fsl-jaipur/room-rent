@@ -59,6 +59,7 @@ export function getUserPublicData(user: IUser) {
     id: user._id,
     email: user.email,
     gender: user.gender ?? null,
+    isVerified: Boolean(user.isVerified),
     hasFullName: Boolean(user.fullName?.trim()),
     hasEmail: Boolean(user.email?.trim()),
     hasPhone: Boolean(user.phone?.trim()),

@@ -48,10 +48,14 @@ export const env = {
   GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY || "",
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
-  RESEND_API_KEY: process.env.RESEND_API_KEY || "",
-  RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL || "",
+  // Email (Nodemailer SMTP)
+  SMTP_HOST: process.env.SMTP_HOST || "smtp.gmail.com",
+  SMTP_PORT: parseInt(process.env.SMTP_PORT || "587"),
+  SMTP_SECURE: process.env.SMTP_SECURE === "true",
+  SMTP_USER: process.env.SMTP_USER || "",
+  SMTP_PASS: process.env.SMTP_PASS || "",
+  EMAIL_FROM: process.env.EMAIL_FROM || "",
   EMAIL_LOGO_URL: process.env.EMAIL_LOGO_URL || "",
-  BYPASS_RESET_EMAIL: process.env.BYPASS_RESET_EMAIL === "true",
 
   // Azure Blob Storage
   AZURE_STORAGE_ACCOUNT_NAME: process.env.AZURE_STORAGE_ACCOUNT_NAME || "",

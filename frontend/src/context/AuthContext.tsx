@@ -6,6 +6,7 @@ interface User {
   id: string;
   email: string;
   role: string;
+  isVerified?: boolean;
   hasFullName?: boolean;
   hasEmail?: boolean;
   hasPhone?: boolean;

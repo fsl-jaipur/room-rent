@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, ShieldCheck } from "lucide-react";
+import { Camera, ShieldCheck, ShieldAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar";
 import SiteFooter from "../../components/SiteFooter";
@@ -48,7 +48,7 @@ const GENDER_OPTIONS = [
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { logout, refreshSession } = useAuth();
+  const { logout, refreshSession, user: authUser } = useAuth();
   const { showToast } = useToast();
   const [form, setForm] = useState<ProfilePayload>(emptyPayload);
   const [loading, setLoading] = useState(true);
@@ -162,10 +162,17 @@ export default function ProfilePage() {
                   <h1 style={{ fontSize: "3rem", lineHeight: 1.05, marginBottom: 10 }}>My Profile</h1>
                   <p>Manage identity, contact details, and preferences.</p>
                 </div>
-                <span className="badge badge-verified">
-                  <ShieldCheck size={16} />
-                  Verified Rental Profile
-                </span>
+                {authUser?.isVerified ? (
+                  <span className="badge badge-verified">
+                    <ShieldCheck size={16} />
+                    Verified Rental Profile
+                  </span>
+                ) : (
+                  <span className="badge badge-unverified">
+                    <ShieldAlert size={16} />
+                    Email Not Verified
+                  </span>
+                )}
               </div>
             </div>
 

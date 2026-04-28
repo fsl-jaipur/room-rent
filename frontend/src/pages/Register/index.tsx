@@ -1,21 +1,11 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Check, Eye, EyeOff } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Check, Eye, EyeOff, Mail } from "lucide-react";
 import brandLogo from "../../assets/Roombaazi Final Logo.png";
 import SiteFooter from "../../components/SiteFooter";
-import Select from "../../components/Select";
-import { useAuth } from "../../context/AuthContext";
 import { apiFetch } from "../../lib/api";
 
-const GENDER_OPTIONS = [
-  { value: "Male", label: "Male" },
-  { value: "Female", label: "Female" },
-  { value: "Other", label: "Other" },
-];
-
 export default function Register() {
-  const navigate = useNavigate();
-  const { refreshSession } = useAuth();
   const [fullName, setFullName] = useState("");
   const [gender, setGender] = useState<"Male" | "Female" | "Other">("Male");
   const [phone, setPhone] = useState("");
@@ -27,6 +17,7 @@ export default function Register() {
   const [errorMsg, setErrorMsg] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const passwordRules = [
     {
@@ -87,14 +78,41 @@ export default function Register() {
           password,
         }),
       });
-      await refreshSession();
-      navigate("/browse");
+      setEmailSent(true);
     } catch (error) {
       setErrorMsg(error instanceof Error ? error.message : "Registration failed");
     } finally {
       setLoading(false);
     }
   };
+
+  if (emailSent) {
+    return (
+      <div className="app-shell auth-shell">
+        <main className="auth-main">
+          <div className="page-container">
+            <div className="auth-logo-wrap">
+              <img src={brandLogo} alt="Roombaazi" />
+            </div>
+            <div className="surface-card auth-card" style={{ textAlign: "center", padding: "48px 40px" }}>
+              <Mail size={52} style={{ color: "var(--orange-500)", marginBottom: 20 }} />
+              <h2 style={{ marginBottom: 10 }}>Check your inbox</h2>
+              <p style={{ color: "var(--text-secondary)", marginBottom: 8 }}>
+                We sent a confirmation link to
+              </p>
+              <p style={{ fontWeight: 700, fontSize: "1.05rem", marginBottom: 24 }}>{email}</p>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: 28 }}>
+                Tap the link in the email to confirm your address and activate your Roombaazi account.
+                The link expires in 24 hours.
+              </p>
+              <Link to="/login" className="btn btn-outline btn-md">Back to Login</Link>
+            </div>
+          </div>
+        </main>
+        <SiteFooter />
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell auth-shell">
@@ -125,16 +143,19 @@ export default function Register() {
 
               <div className="field" style={{ marginBottom: 18 }}>
                 <label>Gender</label>
-                <Select
-                  className={fieldErrors.gender ? "input-error" : ""}
-                  value={gender}
-                  onChange={(next) => {
-                    setGender(next as typeof gender);
-                    setFieldErrors((prev) => ({ ...prev, gender: "" }));
-                  }}
-                  options={GENDER_OPTIONS}
-                  aria-label="Select gender"
-                />
+                <div className="radio-inline">
+                  {(["Male", "Female", "Other"] as const).map((option) => (
+                    <label key={option} className="checkbox-item">
+                      <input
+                        type="radio"
+                        name="gender"
+                        checked={gender === option}
+                        onChange={() => setGender(option)}
+                      />
+                      <span>{option}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               <div className="field" style={{ marginBottom: 18 }}>

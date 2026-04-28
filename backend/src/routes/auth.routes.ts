@@ -7,6 +7,8 @@ import {
   googleLogin,
   logout,
   me,
+  verifyEmail,
+  resendVerificationEmail,
 } from "../controllers/auth.controller.js";
 import {
   createProfile,
@@ -18,6 +20,8 @@ import { requireAuth } from "../middlewares/auth.middleware.js";
 const router = Router();
 
 router.post("/register", register);
+router.get("/verify-email", verifyEmail);
+router.post("/resend-verification", resendVerificationEmail);
 router.post("/login", login);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);

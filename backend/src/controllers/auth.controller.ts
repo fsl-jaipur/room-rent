@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { OAuth2Client } from "google-auth-library";
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import env from "../config/env.js";
 import User from "../models/User.js";
 import PasswordResetRequest from "../models/PasswordResetRequest.js";
@@ -27,7 +27,15 @@ import {
 } from "../utils/jwtHelpers.js";
 
 const googleClient = new OAuth2Client();
-const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
+const mailer = nodemailer.createTransport({
+  host: env.SMTP_HOST,
+  port: env.SMTP_PORT,
+  secure: env.SMTP_SECURE,
+  auth: {
+    user: env.SMTP_USER,
+    pass: env.SMTP_PASS,
+  },
+});
 const RESET_OTP_TTL_MINUTES = 10;
 const OTP_RESEND_LIMIT = 3;
 const OTP_RESEND_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -41,6 +49,62 @@ const generateGooglePhonePlaceholder = (): string => {
     .padStart(3, "0")}`.slice(-14);
   return `G${randomDigits}`;
 };
+
+const buildVerifyEmailHtml = (verifyLink: string, fullName: string) => `
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Confirm Your Email – Roombaazi</title>
+  </head>
+  <body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f4f6f8;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f6f8;padding:32px 0;">
+      <tr>
+        <td align="center">
+          <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+            <tr>
+              <td style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#f59e0b 100%);padding:32px;text-align:center;">
+                <img src="${escapeHtml(env.EMAIL_LOGO_URL || "")}" alt="Roombaazi" width="140" style="max-width:140px;" />
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:36px 40px 12px;">
+                <h2 style="margin:0 0 12px;color:#0f172a;font-size:22px;">Hi ${escapeHtml(fullName)}, welcome to Roombaazi! 🎉</h2>
+                <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.6;">
+                  You're almost ready to start finding your perfect room.<br />
+                  Just tap the button below to confirm your email address and activate your account.
+                </p>
+                <table cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
+                  <tr>
+                    <td align="center" bgcolor="#f59e0b" style="border-radius:8px;">
+                      <a href="${escapeHtml(verifyLink)}" target="_blank"
+                        style="display:inline-block;padding:14px 36px;color:#0f172a;font-size:15px;font-weight:700;text-decoration:none;border-radius:8px;letter-spacing:0.3px;">
+                        Confirm My Email
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:0 0 8px;color:#94a3b8;font-size:12px;text-align:center;">
+                  This link expires in 24 hours. If you didn't create an account, you can safely ignore this email.
+                </p>
+                <p style="margin:0;color:#cbd5e1;font-size:11px;text-align:center;word-break:break-all;">
+                  ${escapeHtml(verifyLink)}
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 40px 32px;text-align:center;color:#94a3b8;font-size:12px;border-top:1px solid #f1f5f9;">
+                © ${new Date().getFullYear()} Roombaazi. All rights reserved.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+`;
 
 const buildResetPasswordEmailHtml = (otpCode: string, resetLink: string) => `
 <!DOCTYPE html>
@@ -153,21 +217,42 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    const user = await User.create({
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const verifyToken = sha256Hex(rawToken);
+    const verifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await User.create({
       fullName: normalizedFullName,
       email: normalizedEmail,
       phone: normalizedPhone,
       passwordHash,
       gender,
       isVerified: false,
+      emailVerifyToken: verifyToken,
+      emailVerifyExpires: verifyExpires,
     });
 
-    const token = sendAuthCookie(res, user);
+    const verifyLink = `${env.CLIENT_URL}/verify-email?token=${rawToken}`;
+
+    let emailSent = false;
+    if (env.SMTP_USER && env.SMTP_PASS) {
+      try {
+        await mailer.sendMail({
+          from: env.EMAIL_FROM || env.SMTP_USER,
+          to: normalizedEmail,
+          subject: "Confirm your email – Roombaazi",
+          html: buildVerifyEmailHtml(verifyLink, normalizedFullName),
+        });
+        emailSent = true;
+      } catch (emailError) {
+        console.error("Verification email failed to send:", emailError);
+        // Don't fail registration if email send errors — user account is created
+      }
+    }
 
     res.status(201).json({
-      message: "Registration successful",
-      token,
-      user: getUserPublicData(user),
+      message: "Registration successful. Please check your email to confirm your account.",
+      emailSent,
     });
   } catch (error) {
     if (handleDuplicateError(error, res)) {
@@ -175,6 +260,91 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     }
 
     console.error("Registration Error:", error);
+    ErrorResponses.internal(res);
+  }
+};
+
+export const verifyEmail = async (req: Request, res: Response): Promise<void> => {
+  const { token } = req.query as { token?: string };
+
+  if (!token || typeof token !== "string" || !token.trim()) {
+    res.status(400).json({ error: "Verification token is required" });
+    return;
+  }
+
+  const hashedToken = sha256Hex(token.trim());
+
+  try {
+    const user = await User.findOne({
+      emailVerifyToken: hashedToken,
+      emailVerifyExpires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      res.status(400).json({ error: "Invalid or expired verification link." });
+      return;
+    }
+
+    user.isVerified = true;
+    user.emailVerifyToken = undefined;
+    user.emailVerifyExpires = undefined;
+    await user.save();
+
+    const jwtToken = sendAuthCookie(res, user);
+
+    res.status(200).json({
+      message: "Email verified successfully",
+      token: jwtToken,
+      user: getUserPublicData(user),
+    });
+  } catch (error) {
+    console.error("Email Verify Error:", error);
+    ErrorResponses.internal(res);
+  }
+};
+
+export const resendVerificationEmail = async (req: Request, res: Response): Promise<void> => {
+  const { email } = req.body as { email?: unknown };
+
+  if (!isNonEmptyString(email) || !isValidEmail(email)) {
+    res.status(400).json({ error: "Valid email is required" });
+    return;
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+
+  try {
+    const user = await User.findOne({ email: normalizedEmail, isActive: true });
+
+    // Always return success to avoid email enumeration
+    if (!user || user.isVerified) {
+      res.status(200).json({ message: "If that email exists and is unverified, a new link has been sent." });
+      return;
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    user.emailVerifyToken = sha256Hex(rawToken);
+    user.emailVerifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await user.save();
+
+    const verifyLink = `${env.CLIENT_URL}/verify-email?token=${rawToken}`;
+
+    if (env.SMTP_USER && env.SMTP_PASS) {
+      try {
+        await mailer.sendMail({
+          from: env.EMAIL_FROM || env.SMTP_USER,
+          to: normalizedEmail,
+          subject: "Confirm your email – Roombaazi",
+          html: buildVerifyEmailHtml(verifyLink, user.fullName),
+        });
+      } catch (emailError) {
+        console.error("Resend verification email failed:", emailError);
+      }
+    }
+
+    res.status(200).json({ message: "If that email exists and is unverified, a new link has been sent." });
+  } catch (error) {
+    console.error("Resend Verification Error:", error);
     ErrorResponses.internal(res);
   }
 };
@@ -246,11 +416,6 @@ export const forgotPassword = async (
     }).lean();
 
     if (!user || !user.email) {
-      if (env.BYPASS_RESET_EMAIL) {
-        res.status(404).json({ error: "No active account found for this email" });
-        return;
-      }
-
       res.status(200).json({ message: genericMessage });
       return;
     }
@@ -299,39 +464,18 @@ export const forgotPassword = async (
       expiresAt: new Date(Date.now() + RESET_OTP_TTL_MINUTES * 60 * 1000),
     });
 
-    if (env.BYPASS_RESET_EMAIL) {
-      res.status(200).json({
-        message: "Email sending is bypassed. Continue to reset password.",
-        resetToken,
-        email: user.email,
-        otpCode,
-      });
-      return;
-    }
-
-    if (!resend || !env.RESEND_FROM_EMAIL) {
-      console.error(
-        "Forgot password email is not configured: missing RESEND_API_KEY or RESEND_FROM_EMAIL.",
-      );
+    if (!env.SMTP_USER || !env.SMTP_PASS) {
+      console.error("Forgot password email is not configured: missing SMTP_USER or SMTP_PASS.");
       res.status(500).json({ error: "Email service is not configured" });
       return;
     }
 
-    const sendResult = await resend.emails.send({
-      from: env.RESEND_FROM_EMAIL,
+    await mailer.sendMail({
+      from: env.EMAIL_FROM || env.SMTP_USER,
       to: user.email,
       subject: "Reset Your Roombaazi Password",
       html: buildResetPasswordEmailHtml(otpCode, resetLink),
     });
-
-    if (sendResult.error) {
-      console.error("Resend send failed:", JSON.stringify(sendResult.error));
-      await User.updateOne({ _id: user._id }, { $inc: { otpResendCount: -1 } });
-      res.status(500).json({
-        error: "Unable to send reset email right now. Please try again later.",
-      });
-      return;
-    }
 
     res.status(200).json({ message: genericMessage });
   } catch (error) {

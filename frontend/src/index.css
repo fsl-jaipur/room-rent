@@ -73,6 +73,7 @@ a {
 
 button {
   border: 0;
+  cursor: pointer;
 }
 
 #root {
@@ -188,6 +189,11 @@ img {
 .badge-verified {
   background: var(--green-100);
   color: var(--green-500);
+}
+
+.badge-unverified {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
 }
 
 .badge-soft {
@@ -1059,6 +1065,7 @@ select.select-style::-ms-expand {
   background: var(--white);
   box-shadow: var(--shadow-card);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
 }
 
 .listing-card:hover {
