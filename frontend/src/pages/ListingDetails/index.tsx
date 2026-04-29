@@ -153,6 +153,7 @@ export default function ListingDetailsPage() {
 
   const [myConnection, setMyConnection] = useState<ConnectionStatus>(null);
   const [connectingOwner, setConnectingOwner] = useState(false);
+  const [cancellingRequest, setCancellingRequest] = useState(false);
 
   const canEdit = Boolean(user && item && user.id === item.landlordId);
 
@@ -274,6 +275,20 @@ export default function ListingDetailsPage() {
       void loadConnectionStatus(item.listingId);
     }
   }, [item?.landlordId, item?.listingId, user?.id]);
+
+  const handleCancelRequest = async () => {
+    if (!myConnection) return;
+    setCancellingRequest(true);
+    try {
+      await apiFetch(`/api/connections/${myConnection.connectionId}`, { method: "DELETE" });
+      setMyConnection(null);
+      showToast("Request cancelled", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Failed to cancel request", "error");
+    } finally {
+      setCancellingRequest(false);
+    }
+  };
 
   const handleConnectOwner = async () => {
     if (!item || !user) return;
@@ -408,7 +423,7 @@ export default function ListingDetailsPage() {
         <section className="page-section">
           <div className="page-container">
             {loading ? (
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 340px", gap: 24 }}>
+              <div className="details-layout">
                 <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                   <div className="surface-card" style={{ padding: 18 }}>
                     <Skeleton style={{ width: "100%", aspectRatio: "1.6 / 1", borderRadius: 22 }} />
@@ -426,7 +441,7 @@ export default function ListingDetailsPage() {
             ) : errorMsg ? (
               <div className="error-banner">{errorMsg}</div>
             ) : item ? (
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 340px", gap: 24, alignItems: "start" }}>
+              <div className="details-layout details-layout--loaded">
                 <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
                   <section className="surface-card" style={{ padding: 18 }}>
                     <div
@@ -707,7 +722,7 @@ export default function ListingDetailsPage() {
                   </section>
                 </div>
 
-                <aside style={{ position: "sticky", top: 104 }}>
+                <aside className="details-sidebar" style={{ position: "sticky", top: 104 }}>
                   <div className="surface-card" style={{ padding: 24 }}>
                     <div style={{ paddingBottom: 18, borderBottom: "1px solid var(--slate-200)", marginBottom: 18 }}>
                       <div style={{ fontSize: "2.2rem", fontWeight: 800, color: "var(--navy-950)", lineHeight: 1 }}>
@@ -764,18 +779,27 @@ export default function ListingDetailsPage() {
                             {connectingOwner ? "Sending Request..." : "Connect Owner"}
                           </button>
                         ) : myConnection.status === "Pending" ? (
-                          <div
-                            style={{
-                              padding: "12px 14px",
-                              borderRadius: 16,
-                              background: "#fff7e8",
-                              border: "1px solid rgba(255,154,61,0.45)",
-                              color: "#b96817",
-                              fontWeight: 700,
-                              fontSize: "0.88rem",
-                            }}
-                          >
-                            Request Pending - awaiting owner response
+                          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                            <div
+                              style={{
+                                padding: "12px 14px",
+                                borderRadius: 16,
+                                background: "#fff7e8",
+                                border: "1px solid rgba(255,154,61,0.45)",
+                                color: "#b96817",
+                                fontWeight: 700,
+                                fontSize: "0.88rem",
+                              }}
+                            >
+                              Request Pending - awaiting owner response
+                            </div>
+                            <button
+                              className="btn btn-outline btn-block"
+                              onClick={() => void handleCancelRequest()}
+                              disabled={cancellingRequest}
+                            >
+                              {cancellingRequest ? "Cancelling..." : "Cancel Request"}
+                            </button>
                           </div>
                         ) : myConnection.status === "Rejected" ? (
                           <div

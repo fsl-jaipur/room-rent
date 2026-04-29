@@ -2090,6 +2090,11 @@ select.select-style::-ms-expand {
   .details-layout {
     grid-template-columns: 1fr;
   }
+
+  .details-sidebar {
+    order: 2;
+    position: static !important;
+  }
 }
 
 @media (max-width: 768px) {
