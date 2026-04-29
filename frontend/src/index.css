@@ -1388,21 +1388,35 @@ select.select-style::-ms-expand {
 .sort-bar.sort-bar-minimal {
   padding: 14px 16px;
   gap: 12px;
+  display: flex;
+  align-items: center;
+  flex-direction: row;
 }
 
 .sort-bar.sort-bar-minimal .sort-bar-search {
-  height: 44px;
   flex: 1;
   min-width: 220px;
 }
 
 .sort-bar.sort-bar-minimal .sort-bar-select {
-  width: min(200px, 100%);
-  flex: 0 0 auto;
+  width: auto;
+  flex: 1;
+  min-width: 150px;
+}
+
+.sort-bar.sort-bar-minimal .filter-mobile-toggle {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .sort-bar.sort-bar-minimal .select-style {
   height: 44px;
+}
+
+/* Search bar at top (outside sort bar) */
+.search-bar-top {
+  width: 100%;
+  margin-bottom: 12px;
 }
 
 /* Filter Pending Indicator */
@@ -2104,18 +2118,15 @@ select.select-style::-ms-expand {
   .sort-bar.sort-bar-minimal {
     flex-direction: row;
     align-items: center;
-    flex-wrap: nowrap;
+    gap: 10px;
   }
 
-  .sort-bar.sort-bar-minimal .sort-bar-search {
-    height: 44px;
-    min-width: 0;
-    flex: 1;
+  .sort-bar.sort-bar-minimal .filter-mobile-toggle {
+    flex-shrink: 0;
   }
 
   .sort-bar.sort-bar-minimal .sort-bar-select {
-    flex: 0 0 auto;
-    width: min(150px, 100%);
+    flex: 1;
   }
 
   .listings-layout {
@@ -2156,6 +2167,10 @@ select.select-style::-ms-expand {
 
 /* Mobile — collapse sidebar to full width */
 @media (max-width: 640px) {
+  .listing-card-meta {
+    display: none;
+  }
+
   .listings-layout {
     grid-template-columns: 1fr;
   }

@@ -382,6 +382,20 @@ export default function ListingsPage() {
               </div>
 
               <div>
+                <input
+                  className="input-style search-bar-top"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      const nextFilters = { ...filters, search: searchInput.trim() };
+                      handleFilterChange(nextFilters);
+                    }
+                  }}
+                  placeholder="Search area or colony"
+                  aria-label="Search area or colony"
+                />
+
                 <div className="sort-bar sort-bar-minimal">
                   <button
                     className="btn btn-outline filter-mobile-toggle"
@@ -391,20 +405,6 @@ export default function ListingsPage() {
                     {filterOpen ? <X size={18} /> : <SlidersHorizontal size={18} />}
                     {filterOpen ? "Close" : "Filters"}
                   </button>
-
-                  <input
-                    className="input-style sort-bar-search"
-                    value={searchInput}
-                    onChange={(event) => setSearchInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        const nextFilters = { ...filters, search: searchInput.trim() };
-                        handleFilterChange(nextFilters);
-                      }
-                    }}
-                    placeholder="Search area or colony"
-                    aria-label="Search area or colony"
-                  />
 
                   <div className="sort-bar-select">
                     {isFilterPending && (
