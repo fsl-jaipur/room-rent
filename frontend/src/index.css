@@ -1956,26 +1956,23 @@ select.select-style::-ms-expand {
   }
 
   .feature-grid,
-  .listing-grid,
   .dashboard-metrics,
   .field-grid-3,
   .field-grid-2 {
     grid-template-columns: 1fr;
   }
 
-  .listings-layout,
+  /* Keep listings 2-column with narrower sidebar at 980px */
+  .listings-layout {
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 20px;
+  }
+
   .profile-form-layout {
     grid-template-columns: 1fr;
   }
 
-  .filter-panel {
-    position: static;
-    max-height: none;
-    overflow: visible;
-  }
-
   .cta-banner,
-  .sort-bar,
   .section-head,
   .liked-properties-head,
   .footer-bottom,
@@ -2054,8 +2051,71 @@ select.select-style::-ms-expand {
   }
 }
 
-/* Tablet landscape adjustments */
+/* Mobile filter toggle button — hidden on desktop */
+.filter-mobile-toggle {
+  display: none;
+}
+
+/* Filter drawer wrapper — always visible on desktop */
+.filter-mobile-drawer {
+  display: block;
+}
+
+/* Tablet portrait — collapse sidebar to full width */
 @media (max-width: 768px) {
+  .filter-mobile-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .filter-mobile-drawer {
+    display: none;
+  }
+
+  .filter-mobile-drawer--open {
+    display: block;
+    margin-bottom: 20px;
+  }
+
+  .sort-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sort-bar.sort-bar-minimal {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: nowrap;
+  }
+
+  .sort-bar.sort-bar-minimal .sort-bar-search {
+    height: 44px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .sort-bar.sort-bar-minimal .sort-bar-select {
+    flex: 0 0 auto;
+    width: min(150px, 100%);
+  }
+
+  .listings-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-panel {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .listing-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .app-navbar-inner {
     gap: 10px;
   }
@@ -2078,7 +2138,23 @@ select.select-style::-ms-expand {
   }
 }
 
+/* Mobile — collapse sidebar to full width */
 @media (max-width: 640px) {
+  .listings-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-panel {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .sort-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .page-section {
     padding: 24px 0 18px;
   }
@@ -2171,7 +2247,10 @@ select.select-style::-ms-expand {
     grid-template-columns: 1fr;
   }
 
-  .listing-grid,
+  .listing-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .upload-grid {
     grid-template-columns: 1fr;
   }

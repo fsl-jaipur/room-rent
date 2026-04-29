@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { SlidersHorizontal, X } from "lucide-react";
 import Navbar from "../../components/Navbar";
 import SiteFooter from "../../components/SiteFooter";
 import FilterSidebar from "../../components/FilterSidebar";
@@ -94,6 +95,7 @@ export default function ListingsPage() {
   const [isFilterPending, setIsFilterPending] = useState(false); // Loading state for debounced filters
   const debounceRef = useRef<number | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const sortOptions = useMemo(
     () => [
@@ -357,32 +359,39 @@ export default function ListingsPage() {
         <section className="page-section">
           <div className="page-container">
             <div className="listings-layout">
-              <FilterSidebar
-                filters={filters}
-                onFilterChange={handleFilterChange}
-                onApply={(nextFilters) => {
-                  // Apply immediately, bypass debouncing
-                  setDebouncedFilters(nextFilters);
-                  setIsFilterPending(false);
-                  if (debounceRef.current) {
-                    clearTimeout(debounceRef.current);
-                  }
-                  updateParams(nextFilters);
-                }}
-                onClear={() => {
-                  setFilters(defaultFilters);
-                  setDebouncedFilters(defaultFilters);
-                  setIsFilterPending(false);
-                  updateParams(defaultFilters, 1);
-                  // Clear any pending debounced changes
-                  if (debounceRef.current) {
-                    clearTimeout(debounceRef.current);
-                  }
-                }}
-              />
+              <div className={`filter-mobile-drawer${filterOpen ? " filter-mobile-drawer--open" : ""}`}>
+                <FilterSidebar
+                  filters={filters}
+                  onFilterChange={handleFilterChange}
+                  onApply={(nextFilters) => {
+                    setDebouncedFilters(nextFilters);
+                    setIsFilterPending(false);
+                    if (debounceRef.current) clearTimeout(debounceRef.current);
+                    updateParams(nextFilters);
+                    setFilterOpen(false);
+                  }}
+                  onClear={() => {
+                    setFilters(defaultFilters);
+                    setDebouncedFilters(defaultFilters);
+                    setIsFilterPending(false);
+                    updateParams(defaultFilters, 1);
+                    if (debounceRef.current) clearTimeout(debounceRef.current);
+                    setFilterOpen(false);
+                  }}
+                />
+              </div>
 
               <div>
                 <div className="sort-bar sort-bar-minimal">
+                  <button
+                    className="btn btn-outline filter-mobile-toggle"
+                    onClick={() => setFilterOpen((prev) => !prev)}
+                    aria-expanded={filterOpen}
+                  >
+                    {filterOpen ? <X size={18} /> : <SlidersHorizontal size={18} />}
+                    {filterOpen ? "Close" : "Filters"}
+                  </button>
+
                   <input
                     className="input-style sort-bar-search"
                     value={searchInput}

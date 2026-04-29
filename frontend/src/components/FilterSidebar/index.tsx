@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 type FilterState = {
   search: string;
   minRent: number;
@@ -51,11 +53,27 @@ export default function FilterSidebar({
   onApply,
   onClear,
 }: FilterSidebarProps) {
+  const [draft, setDraft] = useState<FilterState>(filters);
+
+  // Sync draft when parent resets filters (e.g. Clear all)
+  useEffect(() => {
+    setDraft(filters);
+  }, [filters]);
+
+  const handleApply = () => {
+    onFilterChange(draft);
+    onApply(draft);
+  };
+
+  const handleClear = () => {
+    onClear();
+  };
+
   return (
     <aside className="filter-panel">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <h3 style={{ fontSize: "1.9rem" }}>Filters</h3>
-        <button className="btn btn-ghost" onClick={onClear}>
+        <button className="btn btn-ghost" onClick={handleClear}>
           Clear all
         </button>
       </div>
@@ -66,7 +84,7 @@ export default function FilterSidebar({
         <div className="range-row">
           <div className="range-row-header">
             <span>Min</span>
-            <strong>₹{filters.minRent.toLocaleString("en-IN")}</strong>
+            <strong>₹{draft.minRent.toLocaleString("en-IN")}</strong>
           </div>
           <input
             className="range-input"
@@ -74,12 +92,12 @@ export default function FilterSidebar({
             min={1000}
             max={50000}
             step={500}
-            value={filters.minRent}
+            value={draft.minRent}
             onChange={(event) =>
-              onFilterChange({
-                ...filters,
-                minRent: Math.min(Number(event.target.value), filters.maxRent),
-              })
+              setDraft((prev) => ({
+                ...prev,
+                minRent: Math.min(Number(event.target.value), prev.maxRent),
+              }))
             }
           />
         </div>
@@ -87,7 +105,7 @@ export default function FilterSidebar({
         <div className="range-row">
           <div className="range-row-header">
             <span>Max</span>
-            <strong>₹{filters.maxRent.toLocaleString("en-IN")}</strong>
+            <strong>₹{draft.maxRent.toLocaleString("en-IN")}</strong>
           </div>
           <input
             className="range-input"
@@ -95,12 +113,12 @@ export default function FilterSidebar({
             min={1000}
             max={50000}
             step={500}
-            value={filters.maxRent}
+            value={draft.maxRent}
             onChange={(event) =>
-              onFilterChange({
-                ...filters,
-                maxRent: Math.max(Number(event.target.value), filters.minRent),
-              })
+              setDraft((prev) => ({
+                ...prev,
+                maxRent: Math.max(Number(event.target.value), prev.minRent),
+              }))
             }
           />
         </div>
@@ -113,12 +131,12 @@ export default function FilterSidebar({
             <button
               key={option.value}
               type="button"
-              className={`option-pill ${filters.maxOccupants.includes(option.value) ? "active" : ""}`}
+              className={`option-pill ${draft.maxOccupants.includes(option.value) ? "active" : ""}`}
               onClick={() =>
-                onFilterChange({
-                  ...filters,
-                  maxOccupants: toggleExclusive(filters.maxOccupants, option.value),
-                })
+                setDraft((prev) => ({
+                  ...prev,
+                  maxOccupants: toggleExclusive(prev.maxOccupants, option.value),
+                }))
               }
             >
               <span>{option.label}</span>
@@ -138,12 +156,12 @@ export default function FilterSidebar({
             <label key={item.id} className="checkbox-item">
               <input
                 type="checkbox"
-                checked={filters.propertyTypeId.includes(item.id)}
+                checked={draft.propertyTypeId.includes(item.id)}
                 onChange={() =>
-                  onFilterChange({
-                    ...filters,
-                    propertyTypeId: toggleExclusive(filters.propertyTypeId, item.id),
-                  })
+                  setDraft((prev) => ({
+                    ...prev,
+                    propertyTypeId: toggleExclusive(prev.propertyTypeId, item.id),
+                  }))
                 }
               />
               <span>{item.name}</span>
@@ -163,12 +181,12 @@ export default function FilterSidebar({
             <label key={item.id} className="checkbox-item">
               <input
                 type="checkbox"
-                checked={filters.furnishingTypeId.includes(item.id)}
+                checked={draft.furnishingTypeId.includes(item.id)}
                 onChange={() =>
-                  onFilterChange({
-                    ...filters,
-                    furnishingTypeId: toggleNumber(filters.furnishingTypeId, item.id),
-                  })
+                  setDraft((prev) => ({
+                    ...prev,
+                    furnishingTypeId: toggleNumber(prev.furnishingTypeId, item.id),
+                  }))
                 }
               />
               <span>{item.name}</span>
@@ -181,17 +199,17 @@ export default function FilterSidebar({
         <span className="filter-label">Food Preference</span>
         <div className="checkbox-stack">
           {foodPreferenceOptions.map((item) => {
-            const isActive = filters.foodPreferenceId.includes(item.id);
+            const isActive = draft.foodPreferenceId.includes(item.id);
             return (
               <label key={item.id} className={`checkbox-item checkbox-item-card ${isActive ? "active" : ""}`}>
                 <input
                   type="checkbox"
                   checked={isActive}
                   onChange={() =>
-                    onFilterChange({
-                      ...filters,
-                      foodPreferenceId: toggleExclusive(filters.foodPreferenceId, item.id),
-                    })
+                    setDraft((prev) => ({
+                      ...prev,
+                      foodPreferenceId: toggleExclusive(prev.foodPreferenceId, item.id),
+                    }))
                   }
                 />
                 <span>{item.name}</span>
@@ -205,17 +223,17 @@ export default function FilterSidebar({
         <span className="filter-label">Cooling</span>
         <div className="checkbox-stack">
           {coolingOptions.map((item) => {
-            const isActive = filters.coolingTypeId.includes(item.id);
+            const isActive = draft.coolingTypeId.includes(item.id);
             return (
               <label key={item.id} className={`checkbox-item checkbox-item-card ${isActive ? "active" : ""}`}>
                 <input
                   type="checkbox"
                   checked={isActive}
                   onChange={() =>
-                    onFilterChange({
-                      ...filters,
-                      coolingTypeId: toggleExclusive(filters.coolingTypeId, item.id),
-                    })
+                    setDraft((prev) => ({
+                      ...prev,
+                      coolingTypeId: toggleExclusive(prev.coolingTypeId, item.id),
+                    }))
                   }
                 />
                 <span>{item.name}</span>
@@ -229,17 +247,17 @@ export default function FilterSidebar({
         <span className="filter-label">Room For</span>
         <div className="checkbox-stack">
           {roomForOptions.map((item) => {
-            const isActive = filters.gender.includes(item);
+            const isActive = draft.gender.includes(item);
             return (
               <label key={item} className={`checkbox-item checkbox-item-card ${isActive ? "active" : ""}`}>
                 <input
                   type="checkbox"
                   checked={isActive}
                   onChange={() =>
-                    onFilterChange({
-                      ...filters,
-                      gender: toggleExclusive(filters.gender, item),
-                    })
+                    setDraft((prev) => ({
+                      ...prev,
+                      gender: toggleExclusive(prev.gender, item),
+                    }))
                   }
                 />
                 <span>{item}</span>
@@ -249,7 +267,7 @@ export default function FilterSidebar({
         </div>
       </div>
 
-      <button className="btn btn-dark btn-block" style={{ marginTop: 24 }} onClick={() => onApply(filters)}>
+      <button className="btn btn-dark btn-block" style={{ marginTop: 24 }} onClick={handleApply}>
         Apply Filters
       </button>
     </aside>
