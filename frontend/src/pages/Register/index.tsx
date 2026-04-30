@@ -22,8 +22,8 @@ export default function Register() {
   const passwordRules = [
     {
       key: "length",
-      label: "Minimum 11 to Maximum 15 characters allowed",
-      valid: password.length >= 11 && password.length <= 15,
+      label: "Minimum 8 to Maximum 20 characters allowed",
+      valid: password.length >= 8 && password.length <= 20,
     },
     {
       key: "alphabets",
