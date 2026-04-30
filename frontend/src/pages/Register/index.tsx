@@ -22,18 +22,23 @@ export default function Register() {
   const passwordRules = [
     {
       key: "length",
-      label: "At least 6 characters",
-      valid: password.length >= 6,
+      label: "Minimum 11 to Maximum 15 characters allowed",
+      valid: password.length >= 11 && password.length <= 15,
     },
     {
-      key: "uppercase",
-      label: "One uppercase letter",
-      valid: /[A-Z]/.test(password),
+      key: "alphabets",
+      label: "Password must contain at least one small and one capital alphabet",
+      valid: /[a-z]/.test(password) && /[A-Z]/.test(password),
     },
     {
-      key: "number",
-      label: "One number",
-      valid: /\d/.test(password),
+      key: "numberSpecial",
+      label: "At least one Numeric digit and one special character (@#$%^&* etc.)",
+      valid: /\d/.test(password) && /[@#$%^&*!?]/.test(password),
+    },
+    {
+      key: "noSequence",
+      label: "Password should not contain any sequence or repeated numbers like 123, 000, 111 , abc , aaa etc.",
+      valid: !(/123|234|345|456|567|678|789|890|abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz|000|111|222|333|444|555|666|777|888|999|aaa|bbb|ccc|ddd|eee|fff|ggg|hhh|iii|jjj|kkk|lll|mmm|nnn|ooo|ppp|qqq|rrr|sss|ttt|uuu|vvv|www|xxx|yyy|zzz/i.test(password)),
     },
   ];
 
@@ -46,7 +51,7 @@ export default function Register() {
     if (!email.trim()) nextErrors.email = "Email address is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) nextErrors.email = "Enter a valid email address";
     if (!password) nextErrors.password = "Password is required";
-    else if (passwordRules.some((rule) => !rule.valid)) nextErrors.password = "Please satisfy all password rules";
+    else if (passwordRules.some((rule) => !rule.valid)) nextErrors.password = "Password is not secure and password must be Strong";
     if (!confirmPassword) nextErrors.confirmPassword = "Please confirm your password";
     else if (password !== confirmPassword) nextErrors.confirmPassword = "Passwords do not match";
 
