@@ -273,7 +273,7 @@ export default function Dashboard() {
 
             {errorMsg ? <div className="error-banner">{errorMsg}</div> : null}
 
-            <div className="listing-grid" style={{ marginBottom: 24 }}>
+            <div className="listing-grid" style={{ marginBottom: 24, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
               {loading ? (
                 <>
                   {Array.from({ length: 2 }).map((_, index) => (
