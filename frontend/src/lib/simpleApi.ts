@@ -115,3 +115,6 @@ export const api = {
       body: formData,
     }),
 };
+
+// Backward-compatible alias for screens that still import `simpleApi`.
+export const simpleApi = api;
