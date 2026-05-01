@@ -24,6 +24,8 @@ import ProfilePage from "./pages/Profile/index";
 import LikedPropertiesPage from "./pages/LikedProperties/index";
 import ContactedPropertiesPage from "./pages/ContactedProperties/index";
 import Skeleton from "./components/Skeleton";
+import AdminLogin from "./pages/Admin/AdminLogin";
+import AdminDashboard from "./pages/Admin/AdminDashboard";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -116,6 +118,8 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route path="/admin/login" element={<AdminLogin />} />
+      <Route path="/admin/dashboard" element={<AdminDashboard />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </>
