@@ -12,6 +12,11 @@ interface AdminUser {
   isActive?: boolean;
 }
 
+interface AdminUsersResponse {
+  users: AdminUser[];
+  total: number;
+}
+
 const AdminUsers: React.FC = () => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [city, setCity] = useState("");
@@ -20,10 +25,10 @@ const AdminUsers: React.FC = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await simpleApi.get("/admin/users", {
+      const res = await simpleApi.get<AdminUsersResponse>("/admin/users", {
         params: { city },
       });
-      setUsers(res.data.users);
+      setUsers(res.users);
     } catch {
       setUsers([]);
     }

@@ -11,6 +11,11 @@ interface AdminProperty {
   status?: string;
 }
 
+interface AdminPropertiesResponse {
+  properties: AdminProperty[];
+  total: number;
+}
+
 const AdminProperties: React.FC = () => {
   const [properties, setProperties] = useState<AdminProperty[]>([]);
   const [colony, setColony] = useState("");
@@ -20,10 +25,10 @@ const AdminProperties: React.FC = () => {
   const fetchProperties = async () => {
     setLoading(true);
     try {
-      const res = await simpleApi.get("/admin/properties", {
+      const res = await simpleApi.get<AdminPropertiesResponse>("/admin/properties", {
         params: { colony, area },
       });
-      setProperties(res.data.properties);
+      setProperties(res.properties);
     } catch {
       setProperties([]);
     }

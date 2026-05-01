@@ -1,6 +1,13 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { simpleApi } from "../../lib/simpleApi";
+import { ApiError, simpleApi } from "../../lib/simpleApi";
+
+interface AdminLoginResponse {
+  user: {
+    role: string;
+  };
+  token?: string;
+}
 
 const AdminLogin: React.FC = () => {
   const [email, setEmail] = useState("");
@@ -12,15 +19,15 @@ const AdminLogin: React.FC = () => {
     e.preventDefault();
     setError("");
     try {
-      const res = await simpleApi.post("/auth/login", { email, password });
-      if (res.data.user.role !== "admin") {
+      const res = await simpleApi.post<AdminLoginResponse>("/auth/login", { email, password });
+      if (res.user.role !== "admin") {
         setError("Access denied: Not an admin user.");
         return;
       }
       // Save token/cookie as needed
       navigate("/admin/dashboard");
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Login failed");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Login failed");
     }
   };
 

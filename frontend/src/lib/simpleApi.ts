@@ -5,6 +5,14 @@
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
+interface QueryParams {
+  [key: string]: string | number | boolean | null | undefined;
+}
+
+interface ApiRequestOptions extends RequestInit {
+  params?: QueryParams;
+}
+
 /**
  * Simple API error class
  */
@@ -33,10 +41,12 @@ export const TokenManager = {
  */
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit = {}
+  options: ApiRequestOptions = {}
 ): Promise<T> {
+  const { params, ...fetchOptions } = options;
+
   // Prepare headers
-  const headers = new Headers(options.headers || {});
+  const headers = new Headers(fetchOptions.headers || {});
   
   // Add auth token if available
   const token = TokenManager.get();
@@ -50,9 +60,18 @@ export async function apiFetch<T>(
     headers.set("Content-Type", "application/json");
   }
 
+  const requestUrl = new URL(`${API_BASE_URL}${path}`);
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        requestUrl.searchParams.set(key, String(value));
+      }
+    });
+  }
+
   // Make the request
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
+  const response = await fetch(requestUrl.toString(), {
+    ...fetchOptions,
     credentials: "include", // Important for cookies
     headers,
   });
@@ -86,7 +105,8 @@ export async function apiFetch<T>(
  * Simple shortcuts for common HTTP methods
  */
 export const api = {
-  get: <T>(path: string) => apiFetch<T>(path, { method: "GET" }),
+  get: <T>(path: string, options?: Omit<ApiRequestOptions, "method" | "body">) =>
+    apiFetch<T>(path, { ...options, method: "GET" }),
   
   post: <T>(path: string, data?: any) => 
     apiFetch<T>(path, {
@@ -106,7 +126,8 @@ export const api = {
       body: data ? JSON.stringify(data) : undefined,
     }),
     
-  delete: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
+  delete: <T>(path: string, options?: Omit<ApiRequestOptions, "method" | "body">) =>
+    apiFetch<T>(path, { ...options, method: "DELETE" }),
   
   // For file uploads
   upload: <T>(path: string, formData: FormData) =>
