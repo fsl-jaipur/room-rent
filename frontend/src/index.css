@@ -3054,3 +3054,236 @@ select.select-style::-ms-expand {
     flex-direction: column;
   }
 }
+
+.admin-dashboard-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(15, 118, 110, 0.16), transparent 30%),
+    linear-gradient(180deg, #f6fbfa 0%, #eef4f3 100%);
+  padding: 32px 16px 48px;
+}
+
+.admin-dashboard {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 28px;
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.admin-dashboard__hero {
+  padding: 32px;
+  background: linear-gradient(135deg, #0f766e 0%, #155e75 100%);
+  color: #f8fafc;
+}
+
+.admin-dashboard__hero h2 {
+  margin: 0 0 10px;
+  font-family: "Sora", sans-serif;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+}
+
+.admin-dashboard__eyebrow {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.78rem;
+  opacity: 0.82;
+}
+
+.admin-dashboard__subtitle {
+  margin: 0;
+  max-width: 700px;
+  color: rgba(248, 250, 252, 0.88);
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 12px;
+  padding: 20px 24px 0;
+  flex-wrap: wrap;
+}
+
+.admin-tab {
+  appearance: none;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.admin-tab:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.admin-tab.is-active {
+  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.admin-panel {
+  padding: 24px;
+}
+
+.admin-section {
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 24px;
+  padding: 24px;
+}
+
+.admin-section__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.admin-section__header h3 {
+  margin: 0 0 6px;
+  font-family: "Sora", sans-serif;
+  color: #0f172a;
+}
+
+.admin-section__header p {
+  margin: 0;
+  color: #475569;
+}
+
+.admin-count-pill {
+  background: #ecfeff;
+  color: #0f766e;
+  border: 1px solid #a5f3fc;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.admin-input {
+  flex: 1 1 220px;
+  min-height: 46px;
+  border-radius: 14px;
+  border: 1px solid #cbd5e1;
+  padding: 0 14px;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.admin-input:focus {
+  outline: none;
+  border-color: #14b8a6;
+  box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.16);
+  background: #ffffff;
+}
+
+.admin-action-btn {
+  min-height: 46px;
+  border: none;
+  border-radius: 14px;
+  padding: 0 18px;
+  background: #0f172a;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-feedback,
+.admin-empty-state {
+  border-radius: 18px;
+  padding: 18px;
+  background: #f8fafc;
+  color: #475569;
+  border: 1px dashed #cbd5e1;
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 780px;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 14px 16px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.admin-table th {
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.92rem;
+}
+
+.admin-table td {
+  color: #0f172a;
+  vertical-align: top;
+}
+
+.admin-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.admin-text-capitalize {
+  text-transform: capitalize;
+}
+
+.admin-status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.admin-status-chip.is-live {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.admin-status-chip.is-muted {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+@media (max-width: 768px) {
+  .admin-dashboard__hero,
+  .admin-panel,
+  .admin-section {
+    padding: 20px;
+  }
+
+  .admin-section__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-count-pill {
+    width: fit-content;
+  }
+}

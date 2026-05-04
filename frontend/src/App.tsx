@@ -16,6 +16,8 @@ import ProfilePage from "./pages/Profile/index";
 import LikedPropertiesPage from "./pages/LikedProperties/index";
 import ContactedPropertiesPage from "./pages/ContactedProperties/index";
 import Skeleton from "./components/Skeleton";
+// import AdminLogin from "./pages/Admin/AdminLogin";
+// import AdminDashboard from "./pages/Admin/AdminDashboard";
 
 function ScrollToTop() {
   const { pathname } = useLocation();

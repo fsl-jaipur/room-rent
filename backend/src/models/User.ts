@@ -2,7 +2,7 @@ import mongoose, { Schema, type Document } from "mongoose";
 
 export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
-  // role: "Landlord" | "Tenant";
+  role: "admin" | "landlord" | "tenant";
   fullName: string;
   email?: string;
   phone: string;
@@ -28,11 +28,11 @@ export interface IUser extends Document {
 
 const userSchema = new Schema<IUser>(
   {
-    // role: {
-    //   type: String,
-    //   enum: ["Landlord", "Tenant"],
-    //   default: "Tenant",
-    // },
+    role: {
+      type: String,
+      enum: ["admin", "landlord", "tenant"],
+      default: "tenant",
+    },
     fullName: { type: String, required: true, trim: true },
     email: { type: String, trim: true, lowercase: true },
     phone: { type: String, required: true, trim: true },
