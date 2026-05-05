@@ -51,5 +51,5 @@ jobs:
         with:
           app-name: 'roombaazi-client'
           slot-name: 'Production'
-          package: .
+          package: frontend/dist
           
