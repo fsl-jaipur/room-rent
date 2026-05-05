@@ -644,7 +644,7 @@ export class ListingsService {
         statusName: listing.status,
         landlordName: landlord?.fullName ?? "",
         landlordGender: null,
-        roomFor: listing.roomFor ?? null,
+        roomFor: (listing.roomFor?.toLowerCase() as "male" | "female" | "any") ?? "any",
         coverPhotoUrl: coverPhoto?.photoUrl ?? null,
         rentTiers: (listing.rentTiers as IRentTier[] | undefined ?? []).map((t) => ({ occupants: t.occupants, rent: t.rent })),
         createdAt: listing.createdAt?.toISOString() ?? "",
