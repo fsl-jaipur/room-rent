@@ -22,6 +22,7 @@ jobs:
         with:
           node-version: '22.x'
           cache: 'npm'   # ✅ saves minutes
+          cache-dependency-path: backend/package-lock.json
 
       - name: Install, build, test
         run: |
