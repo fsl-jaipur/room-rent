@@ -9,6 +9,7 @@ type FilterState = {
   foodPreferenceId: number[];
   coolingTypeId: number[];
   propertyTypeId: number[];
+  projectStatusId: number[];
   gender: ("Male" | "Female" | "Other")[];
   sortBy: "newest" | "rent_asc" | "rent_desc";
 };
@@ -186,6 +187,31 @@ export default function FilterSidebar({
                   setDraft((prev) => ({
                     ...prev,
                     furnishingTypeId: toggleNumber(prev.furnishingTypeId, item.id),
+                  }))
+                }
+              />
+              <span>{item.name}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="filter-section">
+        <span className="filter-label">Project Status</span>
+        <div className="checkbox-stack">
+          {[
+            { id: 1, name: "Under Construction" },
+            { id: 2, name: "Ready to Move" },
+            { id: 3, name: "New Launch" },
+          ].map((item) => (
+            <label key={item.id} className="checkbox-item">
+              <input
+                type="checkbox"
+                checked={draft.projectStatusId.includes(item.id)}
+                onChange={() =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    projectStatusId: toggleNumber(prev.projectStatusId, item.id),
                   }))
                 }
               />

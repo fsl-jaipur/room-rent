@@ -88,6 +88,9 @@ export const getAllListings = async (
       propertyTypeId: parseNumberArray(req.query.propertyTypeId as string).length > 0 
         ? parseNumberArray(req.query.propertyTypeId as string) 
         : undefined,
+      projectStatusId: parseNumberArray(req.query.projectStatusId as string).length > 0 
+        ? parseNumberArray(req.query.projectStatusId as string) 
+        : undefined,
       gender: parseStringArray(req.query.gender as string).length > 0 
         ? parseStringArray(req.query.gender as string) 
         : undefined,

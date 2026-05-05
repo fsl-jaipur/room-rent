@@ -43,6 +43,7 @@ type FilterState = {
   foodPreferenceId: number[];
   coolingTypeId: number[];
   propertyTypeId: number[];
+  projectStatusId: number[];
   gender: ("Male" | "Female" | "Other")[];
   sortBy: "newest" | "rent_asc" | "rent_desc";
 };
@@ -59,6 +60,7 @@ const defaultFilters: FilterState = {
   foodPreferenceId: [],
   coolingTypeId: [],
   propertyTypeId: [],
+  projectStatusId: [],
   gender: [],
   sortBy: "newest",
 };
@@ -121,6 +123,7 @@ export default function ListingsPage() {
       "foodPreferenceId",
       "coolingTypeId",
       "propertyTypeId",
+      "projectStatusId",
       "gender",
     ];
     keysToKeep.forEach((key) => {
@@ -187,6 +190,9 @@ export default function ListingsPage() {
       propertyTypeId: parseNumberList(searchParams.get("propertyTypeId")).filter((value) =>
         [1, 2, 3].includes(value),
       ),
+      projectStatusId: parseNumberList(searchParams.get("projectStatusId")).filter((value) =>
+        [1, 2, 3].includes(value),
+      ),
       gender: parseGenderList(searchParams.get("gender")),
       sortBy: validSortBy,
     };
@@ -216,6 +222,7 @@ export default function ListingsPage() {
     if (debouncedFilters.foodPreferenceId.length) params.set("foodPreferenceId", debouncedFilters.foodPreferenceId.join(","));
     if (debouncedFilters.coolingTypeId.length) params.set("coolingTypeId", debouncedFilters.coolingTypeId.join(","));
     if (debouncedFilters.propertyTypeId.length) params.set("propertyTypeId", debouncedFilters.propertyTypeId.join(","));
+    if (debouncedFilters.projectStatusId.length) params.set("projectStatusId", debouncedFilters.projectStatusId.join(","));
     if (debouncedFilters.gender.length) params.set("gender", debouncedFilters.gender.join(","));
 
     return `/api/listings?${params.toString()}`;
@@ -291,6 +298,7 @@ export default function ListingsPage() {
     if (nextFilters.foodPreferenceId.length) next.set("foodPreferenceId", nextFilters.foodPreferenceId.join(","));
     if (nextFilters.coolingTypeId.length) next.set("coolingTypeId", nextFilters.coolingTypeId.join(","));
     if (nextFilters.propertyTypeId.length) next.set("propertyTypeId", nextFilters.propertyTypeId.join(","));
+    if (nextFilters.projectStatusId.length) next.set("projectStatusId", nextFilters.projectStatusId.join(","));
     if (nextFilters.gender.length) next.set("gender", nextFilters.gender.join(","));
     setSearchParams(next);
   };
