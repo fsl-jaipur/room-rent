@@ -461,7 +461,7 @@ export default function ListingDetailsPage() {
                           key={sliderIndex}
                           src={allPhotos[sliderIndex].photoUrl}
                           alt={item.title}
-                          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                          style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
                         />
                       ) : (
                         <div className="listing-card-placeholder" style={{ height: "100%" }}>
@@ -498,25 +498,42 @@ export default function ListingDetailsPage() {
                           </button>
                           <div
                             style={{
-                              position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)",
-                              display: "flex", gap: 6,
+                              position: "absolute",
+                              left: 12,
+                              right: 12,
+                              bottom: 12,
+                              display: "flex",
+                              justifyContent: "center",
+                              gap: 8,
+                              overflowX: "auto",
+                              paddingBottom: 2,
                             }}
                           >
-                            {allPhotos.map((_, i) => (
+                            {allPhotos.map((photo, i) => (
                               <button
                                 key={i}
                                 onClick={() => setSliderIndex(i)}
                                 style={{
-                                  width: i === sliderIndex ? 20 : 8,
-                                  height: 8,
-                                  borderRadius: 4,
-                                  border: "none",
-                                  background: i === sliderIndex ? "var(--orange-500)" : "rgba(255,255,255,0.7)",
+                                  width: 58,
+                                  height: 42,
+                                  borderRadius: 10,
+                                  border: i === sliderIndex ? "2px solid var(--orange-500)" : "2px solid rgba(255,255,255,0.5)",
+                                  background: "rgba(255,255,255,0.35)",
                                   cursor: "pointer",
                                   padding: 0,
-                                  transition: "width 0.2s, background 0.2s",
+                                  overflow: "hidden",
+                                  flex: "0 0 auto",
+                                  boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                                  transition: "border-color 0.2s ease, transform 0.2s ease",
+                                  transform: i === sliderIndex ? "translateY(-1px)" : "none",
                                 }}
-                              />
+                              >
+                                <img
+                                  src={photo.photoUrl}
+                                  alt={`${item.title} preview ${i + 1}`}
+                                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                                />
+                              </button>
                             ))}
                           </div>
                         </>

@@ -77,6 +77,13 @@ export const env = {
   WATERMARK_COLOR: process.env.WATERMARK_COLOR || "#FFFFFF",
   WATERMARK_ENABLED: process.env.WATERMARK_ENABLED !== "false",
 
+  // Cloudinary Configuration
+  CLOUDINARY_ENABLED: process.env.CLOUDINARY_ENABLED === "true",
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || "",
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || "",
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || "",
+  CLOUDINARY_FOLDER: process.env.CLOUDINARY_FOLDER || "uploads",
+
   // Encryption Configuration (for sensitive data like Aadhaar)
   ENCRYPTION_KEY: process.env.ENCRYPTION_KEY || "",
   ENCRYPTION_IV_LENGTH: process.env.ENCRYPTION_IV_LENGTH || "16",
