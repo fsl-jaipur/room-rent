@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { SlidersHorizontal, X } from "lucide-react";
+import "./Listings.css";
 import Navbar from "../../components/Navbar";
 import SiteFooter from "../../components/SiteFooter";
 import FilterSidebar from "../../components/FilterSidebar";
@@ -43,6 +44,7 @@ type FilterState = {
   foodPreferenceId: number[];
   coolingTypeId: number[];
   propertyTypeId: number[];
+  projectStatusId: number[];
   gender: ("Male" | "Female" | "Other")[];
   sortBy: "newest" | "rent_asc" | "rent_desc";
 };
@@ -59,6 +61,7 @@ const defaultFilters: FilterState = {
   foodPreferenceId: [],
   coolingTypeId: [],
   propertyTypeId: [],
+  projectStatusId: [],
   gender: [],
   sortBy: "newest",
 };
@@ -121,6 +124,7 @@ export default function ListingsPage() {
       "foodPreferenceId",
       "coolingTypeId",
       "propertyTypeId",
+      "projectStatusId",
       "gender",
     ];
     keysToKeep.forEach((key) => {
@@ -187,6 +191,9 @@ export default function ListingsPage() {
       propertyTypeId: parseNumberList(searchParams.get("propertyTypeId")).filter((value) =>
         [1, 2, 3].includes(value),
       ),
+      projectStatusId: parseNumberList(searchParams.get("projectStatusId")).filter((value) =>
+        [1, 2, 3].includes(value),
+      ),
       gender: parseGenderList(searchParams.get("gender")),
       sortBy: validSortBy,
     };
@@ -216,6 +223,7 @@ export default function ListingsPage() {
     if (debouncedFilters.foodPreferenceId.length) params.set("foodPreferenceId", debouncedFilters.foodPreferenceId.join(","));
     if (debouncedFilters.coolingTypeId.length) params.set("coolingTypeId", debouncedFilters.coolingTypeId.join(","));
     if (debouncedFilters.propertyTypeId.length) params.set("propertyTypeId", debouncedFilters.propertyTypeId.join(","));
+    if (debouncedFilters.projectStatusId.length) params.set("projectStatusId", debouncedFilters.projectStatusId.join(","));
     if (debouncedFilters.gender.length) params.set("gender", debouncedFilters.gender.join(","));
 
     return `/api/listings?${params.toString()}`;
@@ -291,6 +299,7 @@ export default function ListingsPage() {
     if (nextFilters.foodPreferenceId.length) next.set("foodPreferenceId", nextFilters.foodPreferenceId.join(","));
     if (nextFilters.coolingTypeId.length) next.set("coolingTypeId", nextFilters.coolingTypeId.join(","));
     if (nextFilters.propertyTypeId.length) next.set("propertyTypeId", nextFilters.propertyTypeId.join(","));
+    if (nextFilters.projectStatusId.length) next.set("projectStatusId", nextFilters.projectStatusId.join(","));
     if (nextFilters.gender.length) next.set("gender", nextFilters.gender.join(","));
     setSearchParams(next);
   };
@@ -345,9 +354,9 @@ export default function ListingsPage() {
 
       <main className="page-shell">
         <section className="hero-panel hero-gradient">
-          <div className="page-container" style={{ padding: "56px 0 52px" }}>
-            <p className="eyebrow" style={{ marginBottom: 14 }}>Discover Rentals</p>
-            <h1 style={{ fontSize: "clamp(2.05rem, 4.8vw, 3.25rem)", lineHeight: 1.06, marginBottom: 10 }}>
+          <div className="page-container listings-hero-container">
+            <p className="eyebrow listings-eyebrow">Discover Rentals</p>
+            <h1 className="listings-hero-title">
               Find your next stay with confidence
             </h1>
             <p className="section-subtitle">
@@ -434,12 +443,12 @@ export default function ListingsPage() {
                   {loading
                     ? Array.from({ length: 6 }).map((_, index) => (
                         <div key={`listing-skeleton-${index}`} className="listing-card">
-                          <Skeleton style={{ aspectRatio: "1.24 / 1" }} />
-                          <div style={{ padding: 18 }}>
-                            <Skeleton style={{ height: 24, width: "42%", marginBottom: 10 }} />
-                            <Skeleton style={{ height: 18, width: "76%", marginBottom: 8 }} />
-                            <Skeleton style={{ height: 18, width: "58%", marginBottom: 14 }} />
-                            <Skeleton style={{ height: 16, width: "90%" }} />
+                          <Skeleton className="listings-skeleton-card" />
+                          <div className="listings-skeleton-content">
+                            <Skeleton className="listings-skeleton-title" />
+                            <Skeleton className="listings-skeleton-subtitle" />
+                            <Skeleton className="listings-skeleton-desc" />
+                            <Skeleton className="listings-skeleton-footer" />
                           </div>
                         </div>
                       ))
@@ -467,8 +476,8 @@ export default function ListingsPage() {
                 </div>
 
                 {!loading && !errorMsg && items.length === 0 ? (
-                  <div className="surface-card" style={{ padding: 28, marginTop: 20, textAlign: "center" }}>
-                    <h3 style={{ marginBottom: 8 }}>No properties found</h3>
+                  <div className="surface-card listings-empty-card">
+                    <h3 className="listings-empty-title">No properties found</h3>
                     <p>Try widening your filters or searching another area.</p>
                   </div>
                 ) : null}
@@ -482,7 +491,7 @@ export default function ListingsPage() {
                     >
                       Previous
                     </button>
-                    <span style={{ fontWeight: 700, color: "var(--slate-700)" }}>
+                    <span className="listings-page-count">
                       Page {page} of {totalPages}
                     </span>
                     <button

@@ -8,12 +8,14 @@ import {
   FOOD_PREFERENCES,
   PROPERTY_TYPES,
   COOLING_TYPES,
+  PROJECT_STATUS_TYPES,
   LISTING_STATUSES_BY_NAME,
   FLOOR_LEVELS_BY_NAME,
   FURNISHING_TYPES_BY_NAME,
   FOOD_PREFERENCES_BY_NAME,
   PROPERTY_TYPES_BY_NAME,
   COOLING_TYPES_BY_NAME,
+  PROJECT_STATUS_TYPES_BY_NAME,
   resolveLookup,
 } from "../constants/lookups.js";
 
@@ -75,12 +77,14 @@ export interface ListingItem {
   foodPreferenceId: number;
   coolingTypeId: number | null;
   propertyTypeId: number | null;
+  projectStatusId: number | null;
   availableFrom: string;
   floorName: string;
   furnishingName: string;
   preferenceName: string;
   coolingTypeName: string | null;
   propertyTypeName: string | null;
+  projectStatusName: string | null;
   statusId: number;
   statusName: string;
   landlordName: string;
@@ -149,6 +153,7 @@ export interface ListingFilters {
   foodPreferenceId?: number[];
   coolingTypeId?: number[];
   propertyTypeId?: number[];
+  projectStatusId?: number[];
   gender?: string[];
   allowSmoking?: boolean[];
   sortBy?: "rent_asc" | "rent_desc" | "newest";
@@ -573,6 +578,13 @@ export class ListingsService {
       if (propertyNames.length > 0) query.propertyType = { $in: propertyNames };
     }
 
+    if (filters.projectStatusId && filters.projectStatusId.length > 0) {
+      const statusNames = filters.projectStatusId
+        .map((id) => resolveLookup(PROJECT_STATUS_TYPES, id))
+        .filter(Boolean);
+      if (statusNames.length > 0) query.projectStatus = { $in: statusNames };
+    }
+
     if (filters.allowSmoking && filters.allowSmoking.length > 0) {
       query.allowSmoking = { $in: filters.allowSmoking };
     }
@@ -634,12 +646,16 @@ export class ListingsService {
         propertyTypeId: listing.propertyType
           ? (PROPERTY_TYPES_BY_NAME[listing.propertyType] ?? null)
           : null,
+        projectStatusId: listing.projectStatus
+          ? (PROJECT_STATUS_TYPES_BY_NAME[listing.projectStatus] ?? null)
+          : null,
         availableFrom: listing.availableFrom?.toISOString().split("T")[0] ?? "",
         floorName: listing.floorLevel,
         furnishingName: listing.furnishingType,
         preferenceName: listing.foodPreference,
         coolingTypeName: listing.coolingType ?? null,
         propertyTypeName: listing.propertyType ?? null,
+        projectStatusName: listing.projectStatus ?? null,
         statusId: LISTING_STATUSES_BY_NAME[listing.status] ?? 1,
         statusName: listing.status,
         landlordName: landlord?.fullName ?? "",

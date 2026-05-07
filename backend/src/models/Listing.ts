@@ -26,6 +26,7 @@ export interface IListing extends Document {
   foodPreference: string;
   coolingType?: string;
   propertyType?: string;
+  projectStatus?: string;
   foodLevel?: number;
   bedType?: "Single" | "Double" | "Mixed";
   singleBedCount?: number;
@@ -85,6 +86,7 @@ const listingSchema = new Schema<IListing>(
     foodPreference: { type: String, required: true },
     coolingType: { type: String, enum: ["AC", "Non-AC", "Cooler"] },
     propertyType: { type: String, enum: ["PG", "Individual", "Flat"] },
+    projectStatus: { type: String, enum: ["Under Construction", "Ready to Move", "New Launch"] },
     foodLevel: { type: Number },
     bedType: { type: String, enum: ["Single", "Double", "Mixed"] },
     singleBedCount: { type: Number },

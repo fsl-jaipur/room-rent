@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import "./FilterSidebar.css";
 
 type FilterState = {
   search: string;
@@ -9,6 +10,7 @@ type FilterState = {
   foodPreferenceId: number[];
   coolingTypeId: number[];
   propertyTypeId: number[];
+  projectStatusId: number[];
   gender: ("Male" | "Female" | "Other")[];
   sortBy: "newest" | "rent_asc" | "rent_desc";
 };
@@ -55,7 +57,6 @@ export default function FilterSidebar({
 }: FilterSidebarProps) {
   const [draft, setDraft] = useState<FilterState>(filters);
 
-  // Sync draft when parent resets filters (e.g. Clear all)
   useEffect(() => {
     setDraft(filters);
   }, [filters]);
@@ -71,8 +72,8 @@ export default function FilterSidebar({
 
   return (
     <aside className="filter-panel">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <h3 style={{ fontSize: "1.9rem" }}>Filters</h3>
+      <div className="filter-header">
+        <h3 className="filter-title">Filters</h3>
         <button className="btn btn-ghost" onClick={handleClear}>
           Clear all
         </button>
@@ -80,11 +81,10 @@ export default function FilterSidebar({
 
       <div className="filter-section">
         <span className="filter-label">Rent</span>
-
         <div className="range-row">
           <div className="range-row-header">
             <span>Min</span>
-            <strong>₹{draft.minRent.toLocaleString("en-IN")}</strong>
+            <strong>&#8377;{draft.minRent.toLocaleString("en-IN")}</strong>
           </div>
           <input
             className="range-input"
@@ -101,11 +101,10 @@ export default function FilterSidebar({
             }
           />
         </div>
-
         <div className="range-row">
           <div className="range-row-header">
             <span>Max</span>
-            <strong>₹{draft.maxRent.toLocaleString("en-IN")}</strong>
+            <strong>&#8377;{draft.maxRent.toLocaleString("en-IN")}</strong>
           </div>
           <input
             className="range-input"
@@ -196,6 +195,31 @@ export default function FilterSidebar({
       </div>
 
       <div className="filter-section">
+        <span className="filter-label">Project Status</span>
+        <div className="checkbox-stack">
+          {[
+            { id: 1, name: "Under Construction" },
+            { id: 2, name: "Ready to Move" },
+            { id: 3, name: "New Launch" },
+          ].map((item) => (
+            <label key={item.id} className="checkbox-item">
+              <input
+                type="checkbox"
+                checked={draft.projectStatusId.includes(item.id)}
+                onChange={() =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    projectStatusId: toggleNumber(prev.projectStatusId, item.id),
+                  }))
+                }
+              />
+              <span>{item.name}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="filter-section">
         <span className="filter-label">Food Preference</span>
         <div className="checkbox-stack">
           {foodPreferenceOptions.map((item) => {
@@ -246,6 +270,14 @@ export default function FilterSidebar({
       <div className="filter-section">
         <span className="filter-label">Room For</span>
         <div className="checkbox-stack">
+          <label className={`checkbox-item checkbox-item-card ${draft.gender.length === 0 ? "active" : ""}`}>
+            <input
+              type="checkbox"
+              checked={draft.gender.length === 0}
+              onChange={() => setDraft((prev) => ({ ...prev, gender: [] }))}
+            />
+            <span>Any</span>
+          </label>
           {roomForOptions.map((item) => {
             const isActive = draft.gender.includes(item);
             return (
@@ -267,7 +299,7 @@ export default function FilterSidebar({
         </div>
       </div>
 
-      <button className="btn btn-dark btn-block" style={{ marginTop: 24 }} onClick={handleApply}>
+      <button className="btn btn-dark btn-block filter-apply-btn" onClick={handleApply}>
         Apply Filters
       </button>
     </aside>
