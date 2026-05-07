@@ -29,9 +29,17 @@ app.use((_req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// OpenAPI JSON endpoints (conventional + backward-compatible)
+app.get("/swagger.json", (_req, res) => {
+  res.status(200).json(swaggerSpec);
+});
 app.get("/api/docs.json", (_req, res) => {
   res.status(200).json(swaggerSpec);
 });
+
+// Swagger UI routes (conventional + backward-compatible)
+app.use("/swagger", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // --------------- Routes ---------------
