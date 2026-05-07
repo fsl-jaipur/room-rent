@@ -669,6 +669,12 @@ export const googleLogin = async (
         return;
       }
 
+      // Auto-verify email for Google login (Google has already verified it)
+      if (!existingUser.isVerified) {
+        existingUser.isVerified = true;
+        await existingUser.save();
+      }
+
       const token = sendAuthCookie(res, existingUser);
       res.status(200).json({
         message: "Google login successful",
