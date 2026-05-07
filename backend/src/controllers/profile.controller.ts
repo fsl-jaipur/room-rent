@@ -219,8 +219,7 @@ const saveProfile = async (
   const email = normalizeEmail(trimStringOrNull(payload.email));
   if (hasOwn(payload as object, "email") && email !== null) {
     if (!isValidEmail(email)) {
-      ErrorResponses.badRequest(res, "Valid email is required");
-      return { emailSent: false };
+      throw new Error("VALIDATION_EMAIL");
     }
 
     const existingEmail = normalizeEmail(user.email ?? null);
@@ -356,6 +355,10 @@ export const createProfile = async (req: Request, res: Response): Promise<void> 
     const profile = await getProfileByUserId(req.user.id);
     res.status(201).json({ message: "Profile saved", profile, emailSent });
   } catch (error) {
+    if (error instanceof Error && error.message === "VALIDATION_EMAIL") {
+      res.status(400).json({ error: "Valid email is required" });
+      return;
+    }
     if (error instanceof Error && error.message === "VALIDATION_AADHAAR") {
       res.status(400).json({ error: "Aadhaar must be exactly 12 digits" });
       return;
@@ -388,6 +391,10 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     const profile = await getProfileByUserId(req.user.id);
     res.status(200).json({ message: "Profile updated", profile, emailSent });
   } catch (error) {
+    if (error instanceof Error && error.message === "VALIDATION_EMAIL") {
+      res.status(400).json({ error: "Valid email is required" });
+      return;
+    }
     if (error instanceof Error && error.message === "VALIDATION_AADHAAR") {
       res.status(400).json({ error: "Aadhaar must be exactly 12 digits" });
       return;
