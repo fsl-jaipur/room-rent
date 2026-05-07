@@ -9,7 +9,7 @@ import type { Response } from "express";
  */
 export function isDuplicateKeyError(error: any): { field: string } | null {
   if (error?.code === 11000 && error?.keyPattern) {
-    const field = Object.keys(error.keyPattern)[0] ?? "unknown";
+    const field = Object.keys(error.keyPattern)[0];
     return { field };
   }
   return null;
@@ -23,19 +23,19 @@ export const ErrorResponses = {
     res.status(401).json({ error: "Unauthorized" }),
     
   badRequest: (res: Response, message: string = "Bad request") => 
-    res.status(400).json({ error: message ?? "Bad request" }),
+    res.status(400).json({ error: message }),
     
   notFound: (res: Response, message: string = "Not found") => 
-    res.status(404).json({ error: message ?? "Not found" }),
+    res.status(404).json({ error: message }),
     
   conflict: (res: Response, message: string = "Conflict") => 
-    res.status(409).json({ error: message ?? "Conflict" }),
+    res.status(409).json({ error: message }),
     
   forbidden: (res: Response, message: string = "Forbidden") => 
-    res.status(403).json({ error: message ?? "Forbidden" }),
+    res.status(403).json({ error: message }),
     
   internal: (res: Response, message: string = "Internal server error") => 
-    res.status(500).json({ error: message ?? "Internal server error" }),
+    res.status(500).json({ error: message }),
 
   // Specific auth errors
   invalidCredentials: (res: Response) => 

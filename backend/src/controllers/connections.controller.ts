@@ -308,9 +308,9 @@ export const markMonthlyRentPayment = async (
 
     const existingIndex = connection.rentPayments.findIndex((entry) => entry.month === month);
     if (existingIndex >= 0) {
-      const existingEntry = connection.rentPayments[existingIndex];
+      const existingEntry = connection.rentPayments.at(existingIndex);
       if (!existingEntry) {
-        res.status(500).json({ error: "Internal error: rent payment entry not found." });
+        res.status(500).json({ error: "Rent payment entry could not be loaded" });
         return;
       }
 

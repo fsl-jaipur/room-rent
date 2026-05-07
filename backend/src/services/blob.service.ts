@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import env from "../config/env.js";
 import { WatermarkService } from "./watermark.service.js";
+import { CloudinaryService } from "./cloudinary.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -163,12 +164,7 @@ export class BlobService {
   }
 
   static async uploadImage(file: Express.Multer.File): Promise<UploadedBlob> {
-    const containerClient = this.getContainerClient();
-
-    const originalExt = (file.originalname.split(".").pop() || "jpg").toLowerCase();
-    const safeExt = /^[a-z0-9]+$/.test(originalExt) ? originalExt : "jpg";
-    const blobId = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${safeExt}`;
-
+    // Process watermarking first
     let processedBuffer = file.buffer;
 
     if (env.WATERMARK_ENABLED) {
@@ -177,11 +173,38 @@ export class BlobService {
         processedBuffer = await WatermarkService.addLogoWatermark(file.buffer, logoPath, {
           opacity: env.WATERMARK_OPACITY,
           position: env.WATERMARK_POSITION,
+          text: env.WATERMARK_TEXT,
         });
       } catch (error) {
         console.warn('Watermark application failed, uploading original image:', error);
       }
     }
+
+    // If Cloudinary is enabled, upload there and return its identifiers
+    if (env.CLOUDINARY_ENABLED) {
+      try {
+        const uploadRes = await CloudinaryService.uploadBuffer(processedBuffer, {
+          folder: env.CLOUDINARY_FOLDER,
+          filename: file.originalname,
+          mimetype: file.mimetype,
+        });
+        return {
+          blobId: uploadRes.public_id,
+          blobUrl: uploadRes.secure_url,
+          accessUrl: uploadRes.secure_url,
+        };
+      } catch (err) {
+        console.warn('Cloudinary upload failed, falling back to Azure Blob:', err);
+        // fallthrough to Azure upload
+      }
+    }
+
+    // Fallback: upload to Azure Blob Storage
+    const containerClient = this.getContainerClient();
+
+    const originalExt = (file.originalname.split(".").pop() || "jpg").toLowerCase();
+    const safeExt = /^[a-z0-9]+$/.test(originalExt) ? originalExt : "jpg";
+    const blobId = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${safeExt}`;
 
     const blockBlobClient = containerClient.getBlockBlobClient(blobId);
     await blockBlobClient.uploadData(processedBuffer, {
