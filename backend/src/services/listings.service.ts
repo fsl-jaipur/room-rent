@@ -63,6 +63,7 @@ export interface RentTierItem {
 }
 
 export interface ListingItem {
+  _id: string;
   listingId: string;
   landlordId: string;
   title: string;
@@ -89,6 +90,8 @@ export interface ListingItem {
   statusName: string;
   landlordName: string;
   landlordGender: string | null;
+  landlordRatingScore: number;
+  landlordRatingCount: number;
   roomFor: string | null;
   coverPhotoUrl: string | null;
   createdAt: string;
@@ -133,6 +136,8 @@ export interface ListingDetailsItem {
   statusName: string;
   landlordName: string;
   landlordGender: string | null;
+  landlordRatingScore: number;
+  landlordRatingCount: number;
   roomFor: string | null;
   bedType: string | null;
   singleBedCount: number | null;
@@ -601,7 +606,7 @@ export class ListingsService {
     // Execute query with populate
     const [listings, total] = await Promise.all([
       Listing.find(query)
-        .populate("landlordId", "fullName")
+        .populate("landlordId", "fullName landlordRatingScore landlordRatingCount")
         .sort(sort)
         .skip(offset)
         .limit(limit)
@@ -625,10 +630,11 @@ export class ListingsService {
     }
 
     const items: ListingItem[] = filteredListings.map((listing) => {
-      const landlord = listing.landlordId as unknown as { _id: unknown; fullName?: string };
+      const landlord = listing.landlordId as unknown as { _id: unknown; fullName?: string; landlordRatingScore?: number; landlordRatingCount?: number };
       const coverPhoto = this.findCoverPhoto((listing.photos as IListingPhoto[]) || []);
 
       return {
+        _id: String(listing._id),
         listingId: String(listing._id),
         landlordId: String(landlord?._id ?? listing.landlordId),
         title: listing.title,
@@ -660,6 +666,8 @@ export class ListingsService {
         statusName: listing.status,
         landlordName: landlord?.fullName ?? "",
         landlordGender: null,
+        landlordRatingScore: landlord?.landlordRatingScore ?? 0,
+        landlordRatingCount: landlord?.landlordRatingCount ?? 0,
         roomFor: listing.roomFor ?? null,
         coverPhotoUrl: coverPhoto?.photoUrl ?? null,
         rentTiers: (listing.rentTiers as IRentTier[] | undefined ?? []).map((t) => ({ occupants: t.occupants, rent: t.rent })),
@@ -673,12 +681,12 @@ export class ListingsService {
   // ─── Get Listing By ID ────────────────────────────────────
   static async getListingById(listingId: string): Promise<ListingDetailsItem | null> {
     const listing = await Listing.findById(listingId)
-      .populate("landlordId", "fullName")
+      .populate("landlordId", "fullName landlordRatingScore landlordRatingCount")
       .lean();
 
     if (!listing) return null;
 
-    const landlord = listing.landlordId as unknown as { _id: unknown; fullName?: string };
+    const landlord = listing.landlordId as unknown as { _id: unknown; fullName?: string; landlordRatingScore?: number; landlordRatingCount?: number };
     const photos: ListingPhotoItem[] = (listing.photos || []).map((p) => ({
       photoType: p.photoType,
       photoUrl: p.photoUrl,
@@ -694,10 +702,20 @@ export class ListingsService {
     const coverPhoto = this.findCoverPhoto(listing.photos as IListingPhoto[]);
 
     return {
+      // Standard aliases expected by mobile/web clients
+      _id: String(listing._id),
       listingId: String(listing._id),
       landlordId: String(landlord?._id ?? listing.landlordId),
       title: listing.title,
       description: listing.description ?? null,
+      // Field name aliases (mobile reads these)
+      status: listing.status,
+      floorLevel: listing.floorLevel,
+      furnishingType: listing.furnishingType,
+      foodPreference: listing.foodPreference,
+      coolingType: listing.coolingType ?? null,
+      propertyType: listing.propertyType ?? null,
+      // ID-based fields (web reads these)
       floorLevelId: FLOOR_LEVELS_BY_NAME[listing.floorLevel] ?? 0,
       floorName: listing.floorLevel,
       furnishingTypeId: FURNISHING_TYPES_BY_NAME[listing.furnishingType] ?? 0,
@@ -730,6 +748,8 @@ export class ListingsService {
       statusName: listing.status,
       landlordName: landlord?.fullName ?? "",
       landlordGender: null,
+      landlordRatingScore: landlord?.landlordRatingScore ?? 0,
+      landlordRatingCount: landlord?.landlordRatingCount ?? 0,
       roomFor: listing.roomFor ?? null,
       bedType: listing.bedType ?? null,
       singleBedCount: listing.singleBedCount ?? null,
@@ -737,6 +757,7 @@ export class ListingsService {
       photos,
       coverPhotoUrl: coverPhoto?.photoUrl ?? null,
       createdAt: listing.createdAt?.toISOString() ?? "",
+      isActive: listing.isActive ?? true,
     };
   }
 }

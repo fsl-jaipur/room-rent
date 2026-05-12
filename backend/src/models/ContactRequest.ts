@@ -6,6 +6,7 @@ export interface IContactRequest extends Document {
   landlordId: mongoose.Types.ObjectId;
   message?: string;
   occupants?: number;
+  rentDueDay?: number;
   rentPayments: {
     month: string;
     paymentStatus: "OnTime" | "Late";
@@ -39,6 +40,7 @@ const contactRequestSchema = new Schema<IContactRequest>(
     landlordId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     message: { type: String, trim: true },
     occupants: { type: Number, min: 1 },
+    rentDueDay: { type: Number, min: 1, max: 28 },
     rentPayments: { type: [rentPaymentSchema], default: [] },
     status: {
       type: String,

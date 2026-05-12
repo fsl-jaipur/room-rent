@@ -113,6 +113,43 @@
   margin-bottom: 16px;
 }
 
+.contacted-properties-rate-section {
+  margin: 10px 0 6px;
+  padding: 10px;
+  background: rgba(251, 146, 60, 0.06);
+  border: 1px solid rgba(251, 146, 60, 0.2);
+  border-radius: 10px;
+}
+
+.contacted-properties-rate-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--slate-600, #475569);
+  margin-bottom: 6px;
+}
+
+.contacted-properties-rate-stars {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.contacted-properties-star-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  color: var(--slate-400, #94a3b8);
+  display: flex;
+  align-items: center;
+}
+
+.contacted-properties-rate-submit {
+  margin-left: 8px;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+}
+
 .contacted-properties-card-footer {
   display: flex;
   justify-content: space-between;

@@ -22,6 +22,13 @@ export interface IUser extends Document {
   emailVerifyExpires?: Date;
   otpResendCount: number;
   otpResendWindowStart?: Date;
+  // Rating fields
+  landlordRatingScore: number;
+  landlordRatingCount: number;
+  tenantRatingScore: number;
+  tenantRatingCount: number;
+  tenantPaymentScore: number;
+  tenantPaymentCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -55,6 +62,12 @@ const userSchema = new Schema<IUser>(
     emailVerifyExpires: { type: Date },
     otpResendCount: { type: Number, default: 0 },
     otpResendWindowStart: { type: Date },
+    landlordRatingScore: { type: Number, default: 0 },
+    landlordRatingCount: { type: Number, default: 0 },
+    tenantRatingScore: { type: Number, default: 0 },
+    tenantRatingCount: { type: Number, default: 0 },
+    tenantPaymentScore: { type: Number, default: 0 },
+    tenantPaymentCount: { type: Number, default: 0 },
   },
   {
     timestamps: true, // auto createdAt + updatedAt

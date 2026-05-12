@@ -76,7 +76,7 @@ export const getFavorites = async (
 
     const listingIds = favs.map((f) => f.listingId);
     const listings = await Listing.find({ _id: { $in: listingIds }, isActive: true })
-      .select("_id title photos")
+      .select("_id title photos colony city state pincode monthlyRent furnishingType coolingType roomFor maxOccupants status")
       .lean();
 
     // Preserve the liked order
@@ -85,17 +85,31 @@ export const getFavorites = async (
       .map((id) => listingMap.get(String(id)))
       .filter(Boolean) as typeof listings;
 
-    const items = ordered.map((l) => {
-      const cover =
-        l.photos?.find((p) => p.photoType === "Exterior") || l.photos?.[0] || null;
+    const favorites = ordered.map((l) => {
+      const cover = l.photos?.find((p) => p.photoType === "Room") || l.photos?.[0] || null;
       return {
-        listingId: String(l._id),
-        title: l.title,
-        coverPhotoUrl: cover?.photoUrl ?? null,
+        _id: String(l._id),
+        listingId: {
+          _id: String(l._id),
+          title: l.title,
+          colony: l.colony,
+          city: l.city,
+          state: l.state,
+          pincode: l.pincode,
+          monthlyRent: l.monthlyRent,
+          furnishingType: l.furnishingType,
+          coolingType: l.coolingType ?? null,
+          roomFor: l.roomFor ?? null,
+          maxOccupants: l.maxOccupants,
+          status: l.status,
+          photos: l.photos ?? [],
+          coverPhotoUrl: cover?.photoUrl ?? null,
+        },
+        tenantId: String(tenantId),
       };
     });
 
-    res.status(200).json({ items });
+    res.status(200).json({ favorites });
   } catch (error) {
     next(error);
   }

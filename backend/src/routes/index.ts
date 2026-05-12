@@ -7,6 +7,7 @@ import favoritesRoutes from "./favorites.routes";
 import testimonialsRoutes from "./testimonials.routes";
 import connectionsRoutes from "./connections.routes";
 import adminRoutes from "./admin.routes";
+import ratingsRoutes from "./ratings.routes";
 
 const router = Router();
 
@@ -27,5 +28,6 @@ router.use("/favorites", favoritesRoutes);
 router.use("/testimonials", testimonialsRoutes);
 router.use("/connections", connectionsRoutes);
 router.use("/admin", adminRoutes);
+router.use("/ratings", ratingsRoutes);
 
 export default router;

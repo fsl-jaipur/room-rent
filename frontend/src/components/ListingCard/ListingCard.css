@@ -64,6 +64,15 @@
   font-size: 0.7rem;
 }
 
+.listing-card-rating-badge {
+  padding: 5px 9px;
+  font-size: 0.7rem;
+  background: rgba(251, 146, 60, 0.15);
+  color: #c2410c;
+  border: 1px solid rgba(251, 146, 60, 0.3);
+  border-radius: 999px;
+}
+
 .listing-card-favorite {
   width: 34px;
   min-width: 34px;

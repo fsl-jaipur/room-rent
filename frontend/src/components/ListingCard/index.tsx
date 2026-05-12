@@ -17,6 +17,8 @@ type ListingCardProps = {
   furnishingName: string;
   foodPreferenceName: string;
   coverPhotoUrl: string | null;
+  landlordRatingScore?: number;
+  landlordRatingCount?: number;
   isFavorited?: boolean;
   onToggleFavorite?: (listingId: string) => void;
   createdAt?: string;
@@ -50,6 +52,8 @@ export default function ListingCard({
   furnishingName,
   roomFor,
   coverPhotoUrl,
+  landlordRatingScore,
+  landlordRatingCount,
   isFavorited,
   onToggleFavorite,
   createdAt,
@@ -83,6 +87,11 @@ export default function ListingCard({
             <span className="badge badge-verified listing-card-badge">
               Verified
             </span>
+            {(landlordRatingCount ?? 0) >= 1 && (
+              <span className="badge listing-card-rating-badge" title={`${landlordRatingCount} rating${landlordRatingCount !== 1 ? "s" : ""}`}>
+                ★ {landlordRatingScore?.toFixed(1)}
+              </span>
+            )}
           </div>
 
           <button

@@ -4,6 +4,29 @@ import { ContactRequest } from "../models/ContactRequest.js";
 import Listing from "../models/Listing.js";
 import User from "../models/User.js";
 
+async function recomputeTenantPaymentScore(tenantId: mongoose.Types.ObjectId) {
+  const [agg] = await ContactRequest.aggregate([
+    { $match: { tenantId } },
+    { $unwind: "$rentPayments" },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: 1 },
+        onTime: {
+          $sum: { $cond: [{ $eq: ["$rentPayments.paymentStatus", "OnTime"] }, 1, 0] },
+        },
+      },
+    },
+  ]);
+  if (agg && agg.total > 0) {
+    const score = Math.round((1 + 4 * (agg.onTime / agg.total)) * 10) / 10;
+    await User.updateOne(
+      { _id: tenantId },
+      { tenantPaymentScore: score, tenantPaymentCount: agg.total }
+    );
+  }
+}
+
 // POST /api/connections
 // Tenant clicks "Connect Owner" on a listing
 export const connectOwner = async (
@@ -156,6 +179,7 @@ export const getTenantConnections = async (
         monthlyRent: listing?.monthlyRent ?? 0,
         maxOccupants: listing?.maxOccupants ?? 0,
         coverPhotoUrl: coverPhoto,
+        rentDueDay: connection.rentDueDay ?? null,
         status: connection.status,
         isConnected: connection.isConnected,
         requestedAt: connection.createdAt.toISOString(),
@@ -196,14 +220,14 @@ export const getLandlordConnections = async (
 
     const [tenants, listings] = await Promise.all([
       User.find({ _id: { $in: tenantIds } })
-        .select("fullName email phone photoUrl")
+        .select("fullName email phone photoUrl tenantRatingScore tenantRatingCount tenantPaymentScore tenantPaymentCount")
         .lean(),
       Listing.find({ _id: { $in: listingIds } })
         .select("title colony city monthlyRent maxOccupants")
         .lean(),
     ]);
 
-    const tenantMap = new Map(tenants.map((t) => [String(t._id), t]));
+    const tenantMap = new Map(tenants.map((t) => [String(t._id), t as typeof t & { tenantRatingScore?: number; tenantRatingCount?: number; tenantPaymentScore?: number; tenantPaymentCount?: number }]));
     const listingMap = new Map(listings.map((l) => [String(l._id), l]));
 
     const items = connections.map((c) => {
@@ -216,11 +240,16 @@ export const getLandlordConnections = async (
         tenantEmail: tenant?.email ?? null,
         tenantPhone: tenant?.phone ?? null,
         tenantPhoto: tenant?.photoUrl ?? null,
+        tenantRatingScore: tenant?.tenantRatingScore ?? 0,
+        tenantRatingCount: tenant?.tenantRatingCount ?? 0,
+        tenantPaymentScore: tenant?.tenantPaymentScore ?? 0,
+        tenantPaymentCount: tenant?.tenantPaymentCount ?? 0,
         listingId: String(c.listingId),
         listingTitle: listing ? `${listing.title} · ${listing.colony}, ${listing.city}` : "Unknown Listing",
         monthlyRent: listing?.monthlyRent ?? 0,
         maxOccupants: listing?.maxOccupants ?? 0,
         requestedOccupants: c.occupants ?? null,
+        rentDueDay: c.rentDueDay ?? null,
         rentPayments: Array.isArray(c.rentPayments)
           ? [...c.rentPayments].sort((a, b) => b.month.localeCompare(a.month))
           : [],
@@ -357,6 +386,9 @@ export const markMonthlyRentPayment = async (
 
     await connection.save();
 
+    // Update tenant's payment reputation score
+    void recomputeTenantPaymentScore(connection.tenantId);
+
     const rentPayments = [...connection.rentPayments].sort((a, b) => b.month.localeCompare(a.month));
 
     res.status(200).json({
@@ -421,6 +453,15 @@ export const dealDone = async (
       }
     }
 
+    const { rentDueDay } = req.body as { rentDueDay?: number };
+    if (rentDueDay !== undefined) {
+      const day = Number(rentDueDay);
+      if (!Number.isInteger(day) || day < 1 || day > 28) {
+        res.status(400).json({ error: "rentDueDay must be an integer between 1 and 28" });
+        return;
+      }
+    }
+
     // Update the connection
     const updatedConnection = await ContactRequest.findOneAndUpdate(
       {
@@ -432,6 +473,7 @@ export const dealDone = async (
           status: "Accepted",
           isConnected: true,
           respondedAt: new Date(),
+          ...(rentDueDay !== undefined ? { rentDueDay: Number(rentDueDay) } : {}),
         },
       },
       { new: true }

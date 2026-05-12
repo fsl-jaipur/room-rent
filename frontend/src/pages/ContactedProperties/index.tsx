@@ -1,4 +1,4 @@
-import { CalendarDays, ExternalLink, Home, MapPin, Users } from "lucide-react";
+import { CalendarDays, ExternalLink, Home, MapPin, Star, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./ContactedProperties.css";
@@ -6,6 +6,7 @@ import Navbar from "../../components/Navbar";
 import SiteFooter from "../../components/SiteFooter";
 import Skeleton from "../../components/Skeleton";
 import { apiFetch } from "../../lib/api";
+import { useToast } from "../../context/ToastContext";
 
 type ContactedProperty = {
   connectionId: string;
@@ -31,8 +32,12 @@ const statusClassName = (status: ContactedProperty["status"]) => {
 
 export default function ContactedPropertiesPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [items, setItems] = useState<ContactedProperty[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ratingByConnection, setRatingByConnection] = useState<Record<string, number>>({});
+  const [ratingHoverByConnection, setRatingHoverByConnection] = useState<Record<string, number>>({});
+  const [submittingRatingId, setSubmittingRatingId] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch<{ items: ContactedProperty[] }>("/api/connections/mine", { method: "GET" })
@@ -40,6 +45,24 @@ export default function ContactedPropertiesPage() {
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleRateLandlord = async (connectionId: string, title: string) => {
+    const score = ratingByConnection[connectionId];
+    if (!score) return;
+    setSubmittingRatingId(connectionId);
+    try {
+      await apiFetch("/api/ratings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connectionId, score, type: "landlord" }),
+      });
+      showToast(`Rated landlord of "${title}" — ${score} star${score > 1 ? "s" : ""}`, "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Failed to submit rating", "error");
+    } finally {
+      setSubmittingRatingId(null);
+    }
+  };
 
   return (
     <div className="app-shell">
@@ -122,6 +145,36 @@ export default function ContactedPropertiesPage() {
                             })}
                           </span>
                         </div>
+
+                        {item.isConnected && (
+                          <div className="contacted-properties-rate-section" onClick={(e) => e.stopPropagation()}>
+                            <p className="contacted-properties-rate-label">Rate this landlord</p>
+                            <div className="contacted-properties-rate-stars">
+                              {[1, 2, 3, 4, 5].map((star) => {
+                                const active = (ratingHoverByConnection[item.connectionId] || ratingByConnection[item.connectionId] || 0) >= star;
+                                return (
+                                  <button
+                                    key={star}
+                                    type="button"
+                                    className="contacted-properties-star-btn"
+                                    onMouseEnter={() => setRatingHoverByConnection((prev) => ({ ...prev, [item.connectionId]: star }))}
+                                    onMouseLeave={() => setRatingHoverByConnection((prev) => ({ ...prev, [item.connectionId]: 0 }))}
+                                    onClick={() => setRatingByConnection((prev) => ({ ...prev, [item.connectionId]: star }))}
+                                  >
+                                    <Star size={18} fill={active ? "var(--orange-500, #f97316)" : "none"} stroke={active ? "var(--orange-500, #f97316)" : "currentColor"} />
+                                  </button>
+                                );
+                              })}
+                              <button
+                                className="btn btn-sm btn-primary contacted-properties-rate-submit"
+                                disabled={!ratingByConnection[item.connectionId] || submittingRatingId === item.connectionId}
+                                onClick={() => void handleRateLandlord(item.connectionId, item.title)}
+                              >
+                                {submittingRatingId === item.connectionId ? "Saving…" : "Submit"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
                         <div className="contacted-properties-card-footer">
                           <span className={`contacted-properties-card-status ${item.listingActive ? "contacted-properties-card-active" : "contacted-properties-card-inactive"}`}>

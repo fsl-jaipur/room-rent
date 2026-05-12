@@ -15,10 +15,10 @@ export function createAuthToken(user: IUser): string {
     {
       id: user._id,
       email: user.email,
-      role: "User" // Simplified - removed role complexity
+      role: user.role,
     },
     env.JWT_SECRET,
-    { expiresIn: "7d" } // 7 days
+    { expiresIn: "7d" }
   );
 }
 
@@ -57,8 +57,11 @@ export function clearAuthCookie(res: Response): void {
 export function getUserPublicData(user: IUser) {
   return {
     id: user._id,
-    email: user.email,
+    role: user.role,
+    fullName: user.fullName ?? null,
+    email: user.email ?? null,
     gender: user.gender ?? null,
+    photoUrl: user.photoUrl ?? null,
     isVerified: Boolean(user.isVerified),
     hasFullName: Boolean(user.fullName?.trim()),
     hasEmail: Boolean(user.email?.trim()),

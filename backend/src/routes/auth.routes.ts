@@ -9,6 +9,7 @@ import {
   me,
   verifyEmail,
   resendVerificationEmail,
+  switchRole,
 } from "../controllers/auth.controller.js";
 import {
   createProfile,
@@ -31,5 +32,6 @@ router.get("/me", requireAuth, me);
 router.get("/profile", requireAuth, getProfile);
 router.post("/profile", requireAuth, createProfile);
 router.patch("/profile", requireAuth, updateProfile);
+router.patch("/switch-role", requireAuth, switchRole);
 
 export default router;

@@ -25,6 +25,8 @@ type Listing = {
   propertyTypeId: number | null;
   foodPreferenceName: string;
   coverPhotoUrl: string | null;
+  landlordRatingScore?: number;
+  landlordRatingCount?: number;
   createdAt?: string;
 };
 
@@ -468,6 +470,8 @@ export default function ListingsPage() {
                           furnishingName={item.furnishingName}
                           foodPreferenceName={item.foodPreferenceName}
                           coverPhotoUrl={item.coverPhotoUrl}
+                          landlordRatingScore={item.landlordRatingScore}
+                          landlordRatingCount={item.landlordRatingCount}
                           isFavorited={favoriteIds.has(item.listingId)}
                           onToggleFavorite={handleToggleFavorite}
                           createdAt={item.createdAt}

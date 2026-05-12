@@ -66,7 +66,7 @@ type ListingDetails = {
   doubleBedCount: number | null;
   roomFor: string | null;
   coverPhotoUrl: string | null;
-  photos: ListingPhoto[];
+  photos?: ListingPhoto[] | null;
 };
 
 type EditForm = {
@@ -165,8 +165,9 @@ export default function ListingDetailsPage() {
 
   const allPhotos = useMemo(() => {
     if (!item) return [];
-    return item.photos.length > 0
-      ? item.photos
+    const photos = Array.isArray(item.photos) ? item.photos : [];
+    return photos.length > 0
+      ? photos
       : item.coverPhotoUrl
         ? [{ photoType: "Exterior", photoUrl: item.coverPhotoUrl, displayOrder: 1 } as ListingPhoto]
         : [];
@@ -248,12 +249,14 @@ export default function ListingDetailsPage() {
     setLoading(true);
     setErrorMsg("");
     try {
-      const data = await apiFetch<ListingDetails>(`/api/listings/${listingId}`, { method: "GET" });
-      setItem(data);
+      const { listing: data } = await apiFetch<{ listing: ListingDetails }>(`/api/listings/${listingId}`, { method: "GET" });
+      const photos = Array.isArray(data.photos) ? data.photos : [];
+      const normalized = { ...data, photos };
+      setItem(normalized);
       setSliderIndex(0);
 
-      const exterior = data.photos.find((photo) => photo.photoType === "Exterior")?.photoUrl || "";
-      const roomUrls = data.photos
+      const exterior = photos.find((photo) => photo.photoType === "Exterior")?.photoUrl || "";
+      const roomUrls = photos
         .filter((photo) => photo.photoType === "Room")
         .map((photo) => photo.photoUrl)
         .slice(0, 2);
@@ -557,7 +560,7 @@ export default function ListingDetailsPage() {
                     <div className={`listing-card-meta${item.description ? " listing-details-meta-wrapper" : ""}`}>
                       <span className="listing-card-meta-item">
                         <BadgeIndianRupee size={16} />
-                        ₹{item.monthlyRent.toLocaleString("en-IN")}/month
+                        ₹{Number(item.monthlyRent).toLocaleString("en-IN")}/month
                       </span>
                       <span className="listing-card-meta-item">
                         <Users size={16} />

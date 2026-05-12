@@ -189,7 +189,7 @@ export const getListingById = async (
       return;
     }
 
-    res.status(200).json(item);
+    res.status(200).json({ listing: item });
   } catch (error) {
     next(error);
   }

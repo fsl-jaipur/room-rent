@@ -26,11 +26,17 @@ type Listing = {
 
 type TenantConnection = {
   connectionId: string;
+  tenantId: string;
   tenantName: string;
   listingTitle: string;
   monthlyRent: number;
   maxOccupants: number;
   requestedOccupants?: number | null;
+  rentDueDay?: number | null;
+  tenantRatingScore?: number;
+  tenantRatingCount?: number;
+  tenantPaymentScore?: number;
+  tenantPaymentCount?: number;
   rentPayments?: {
     month: string;
     paymentStatus: "OnTime" | "Late";
@@ -51,6 +57,12 @@ const getCurrentMonth = () => {
   return `${year}-${month}`;
 };
 
+const ordinal = (n: number) => {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return s[(v - 20) % 10] ?? s[v] ?? s[0];
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -65,11 +77,14 @@ export default function Dashboard() {
   const [togglingStatusId, setTogglingStatusId] = useState<string | null>(null);
   const [processingConnectionId, setProcessingConnectionId] = useState<string | null>(null);
   const [rentSlipFileByConnection, setRentSlipFileByConnection] = useState<Record<string, File | null>>({});
-  
+  const [tenantRatingByConnection, setTenantRatingByConnection] = useState<Record<string, number>>({});
+  const [submittingRatingId, setSubmittingRatingId] = useState<string | null>(null);
+
   // Deal amount dialog state
   const [dealDialogOpen, setDealDialogOpen] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState<TenantConnection | null>(null);
   const [dealAmount, setDealAmount] = useState<string>("");
+  const [rentDueDay, setRentDueDay] = useState<string>("5");
   const focusedRequestId = searchParams.get("request");
 
   useEffect(() => {
@@ -156,6 +171,7 @@ export default function Dashboard() {
 
     setSelectedConnection(connection);
     setDealAmount(connection.monthlyRent.toString());
+    setRentDueDay("5");
     setDealDialogOpen(true);
   };
 
@@ -164,24 +180,26 @@ export default function Dashboard() {
     
     setProcessingConnectionId(selectedConnection.connectionId);
     try {
-      await apiFetch(`/api/connections/${selectedConnection.connectionId}/deal-done`, { 
+      const dueDayNum = Number(rentDueDay);
+      await apiFetch(`/api/connections/${selectedConnection.connectionId}/deal-done`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ finalAmount: Number(dealAmount) })
+        body: JSON.stringify({ finalAmount: Number(dealAmount), rentDueDay: dueDayNum })
       });
-      
+
       setConnections((prev) =>
         prev.map((conn) =>
-          conn.connectionId === selectedConnection.connectionId 
-            ? { ...conn, status: "Accepted" as const, finalDealAmount: Number(dealAmount) } 
+          conn.connectionId === selectedConnection.connectionId
+            ? { ...conn, status: "Accepted" as const, finalDealAmount: Number(dealAmount), rentDueDay: dueDayNum }
             : conn
         )
       );
-      
-      showToast(`Deal confirmed for ₹${Number(dealAmount).toLocaleString("en-IN")}/month`, "success");
+
+      showToast(`Deal confirmed for ₹${Number(dealAmount).toLocaleString("en-IN")}/month · Rent due on ${dueDayNum}${ordinal(dueDayNum)}`, "success");
       setDealDialogOpen(false);
       setSelectedConnection(null);
       setDealAmount("");
+      setRentDueDay("5");
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Failed to confirm deal", "error");
     } finally {
@@ -255,6 +273,24 @@ export default function Dashboard() {
       <span>{count} {count === 1 ? "occupant" : "occupants"}</span>
     </>
   );
+
+  const handleRateTenant = async (connection: TenantConnection) => {
+    const score = tenantRatingByConnection[connection.connectionId];
+    if (!score) return;
+    setSubmittingRatingId(connection.connectionId);
+    try {
+      await apiFetch("/api/ratings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connectionId: connection.connectionId, score, type: "tenant" }),
+      });
+      showToast(`Rated ${connection.tenantName} — ${score} star${score > 1 ? "s" : ""}`, "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Failed to submit rating", "error");
+    } finally {
+      setSubmittingRatingId(null);
+    }
+  };
 
   const handleRentPaymentUpdate = async (
     connection: TenantConnection,
@@ -354,6 +390,24 @@ export default function Dashboard() {
                 </div>
                 <p className="dashboard-deal-note">
                   Original price: ₹{selectedConnection.monthlyRent.toLocaleString("en-IN")}/month
+                </p>
+              </div>
+
+              <div className="dashboard-deal-section">
+                <label className="field-label">Rent Due Day (each month)</label>
+                <select
+                  className="input-style"
+                  value={rentDueDay}
+                  onChange={(e) => setRentDueDay(e.target.value)}
+                >
+                  {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                    <option key={day} value={day}>
+                      {day}{ordinal(day)} of every month
+                    </option>
+                  ))}
+                </select>
+                <p className="dashboard-deal-note">
+                  Tenant's rating will be affected if rent is paid after this date.
                 </p>
               </div>
             </div>
@@ -577,7 +631,21 @@ export default function Dashboard() {
                     >
                       <div className="tenant-request-row">
                         <div className="tenant-request-main">
-                          <h3 className="dashboard-request-tenantname">{connection.tenantName}</h3>
+                          <div className="dashboard-tenant-name-row">
+                            <h3 className="dashboard-request-tenantname">{connection.tenantName}</h3>
+                            <div className="dashboard-tenant-score-badges">
+                              {(connection.tenantPaymentCount ?? 0) > 0 && (
+                                <span className="badge dashboard-score-badge-payment" title="Payment score">
+                                  💳 {connection.tenantPaymentScore?.toFixed(1)}/5
+                                </span>
+                              )}
+                              {(connection.tenantRatingCount ?? 0) > 0 && (
+                                <span className="badge dashboard-score-badge-rating" title="Landlord rating">
+                                  ⭐ {connection.tenantRatingScore?.toFixed(1)}/5
+                                </span>
+                              )}
+                            </div>
+                          </div>
                           <p className="dashboard-request-listingtitle">{connection.listingTitle}</p>
                           
                           {/* Occupant Information */}
@@ -605,9 +673,44 @@ export default function Dashboard() {
                           )}
 
                           {connection.status === "Accepted" && (
+                            <div className="dashboard-rate-tenant-panel">
+                              <p className="dashboard-rate-tenant-label">Rate this tenant</p>
+                              <div className="dashboard-rate-stars">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <button
+                                    key={star}
+                                    type="button"
+                                    className={`dashboard-rate-star-btn${(tenantRatingByConnection[connection.connectionId] ?? 0) >= star ? " is-active" : ""}`}
+                                    onClick={() =>
+                                      setTenantRatingByConnection((prev) => ({
+                                        ...prev,
+                                        [connection.connectionId]: star,
+                                      }))
+                                    }
+                                  >
+                                    ★
+                                  </button>
+                                ))}
+                                <button
+                                  className="btn btn-sm btn-primary dashboard-rate-submit-btn"
+                                  disabled={!tenantRatingByConnection[connection.connectionId] || submittingRatingId === connection.connectionId}
+                                  onClick={() => void handleRateTenant(connection)}
+                                >
+                                  {submittingRatingId === connection.connectionId ? "Saving…" : "Submit"}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {connection.status === "Accepted" && (
                             <div className="rent-tracking-panel">
                               <p className="dashboard-rent-tracking-title">
                                 Monthly Rent Tracking
+                                {connection.rentDueDay ? (
+                                  <span className="rent-due-day-chip">
+                                    Due: {connection.rentDueDay}{ordinal(connection.rentDueDay)} of month
+                                  </span>
+                                ) : null}
                               </p>
 
                               <div className="rent-tracking-controls">

@@ -16,7 +16,9 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: env.CLIENT_URL || "https://roombaazi.com",
+    origin: env.NODE_ENV === "production"
+      ? [env.CLIENT_URL, "https://roombaazi.com", "http://localhost:8081"]
+      : true,
     credentials: true,
   })
 );

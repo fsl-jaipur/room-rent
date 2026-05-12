@@ -728,3 +728,27 @@ export const logout = (_req: Request, res: Response): void => {
   clearAuthCookie(res);
   res.status(200).json({ message: "Logged out successfully" });
 };
+
+export const switchRole = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user?.id) {
+    ErrorResponses.unauthorized(res);
+    return;
+  }
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user || !user.isActive) {
+      ErrorResponses.unauthorized(res);
+      return;
+    }
+    if (user.role === "admin") {
+      res.status(403).json({ error: "Admin role cannot be changed" });
+      return;
+    }
+    user.role = user.role === "tenant" ? "landlord" : "tenant";
+    await user.save();
+    res.status(200).json({ user: getUserPublicData(user) });
+  } catch (error) {
+    console.error("Switch role error:", error);
+    ErrorResponses.internal(res);
+  }
+};
