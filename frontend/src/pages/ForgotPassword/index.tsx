@@ -32,7 +32,7 @@ export default function ForgotPassword() {
 
     try {
       const response = await apiFetch<{ message: string; resetToken?: string; email?: string; otpCode?: string }>(
-        "/api/auth/forgot-password",
+        "/api/auth/password?action=forgot",
         {
           method: "POST",
           body: JSON.stringify({ email: email.trim() }),

@@ -55,7 +55,7 @@ export default function ResetPassword() {
       if (tokenFromLink) payload.token = tokenFromLink;
       if (otpCode.trim()) payload.otpCode = otpCode.trim();
 
-      const response = await apiFetch<{ message: string }>("/api/auth/reset-password", {
+      const response = await apiFetch<{ message: string }>("/api/auth/password?action=reset", {
         method: "POST",
         body: JSON.stringify(payload),
       });

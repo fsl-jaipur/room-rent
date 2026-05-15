@@ -1,11 +1,10 @@
 import { Router } from "express";
 import multer from "multer";
 import {
-  getAllListings,
+  getListings,
   getLocationOptions,
   updateLocationData,
   getMyListings,
-  getListingById,
   createListingsWithMedia,
   updateListing,
   deleteListing,
@@ -30,12 +29,10 @@ const upload = multer({
 // Enforce auth middleware for all listing routes
 router.use(requireAuth);
 
-// Get all active listings
-router.get("/", getAllListings);
 router.get("/location-options", getLocationOptions);
 router.put("/location-data", updateLocationData);
 router.get("/mine", getMyListings);
-router.get("/:listingId", getListingById);
+router.get("/:listingId?", getListings);
 
 // Single publish request: details + media files together
 router.post("/submit", upload.any(), createListingsWithMedia);

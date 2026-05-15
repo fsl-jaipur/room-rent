@@ -197,7 +197,7 @@ export default function ListingDetailsPage() {
       return;
     }
     try {
-      const data = await apiFetch<{ ids: string[] }>("/api/favorites/ids", { method: "GET" });
+      const data = await apiFetch<{ ids: string[] }>("/api/favorites", { method: "GET" });
       setIsFavorited(Array.isArray(data.ids) && data.ids.includes(currentListingId));
     } catch {
       setIsFavorited(false);

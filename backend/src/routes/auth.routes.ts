@@ -2,14 +2,12 @@ import { Router } from "express";
 import {
   register,
   login,
-  forgotPassword,
-  resetPassword,
+  password,
   googleLogin,
   logout,
-  me,
+  checkToken,
   verifyEmail,
   resendVerificationEmail,
-  switchRole,
 } from "../controllers/auth.controller.js";
 import {
   createProfile,
@@ -24,14 +22,12 @@ router.post("/register", register);
 router.get("/verify-email", verifyEmail);
 router.post("/resend-verification", resendVerificationEmail);
 router.post("/login", login);
-router.post("/forgot-password", forgotPassword);
-router.post("/reset-password", resetPassword);
+router.post("/password", password);
 router.post("/google", googleLogin);
 router.post("/logout", logout);
-router.get("/me", requireAuth, me);
+router.get("/check-token", requireAuth, checkToken);
 router.get("/profile", requireAuth, getProfile);
 router.post("/profile", requireAuth, createProfile);
-router.patch("/profile", requireAuth, updateProfile);
-router.patch("/switch-role", requireAuth, switchRole);
+router.patch("/profile-update", requireAuth, updateProfile);
 
 export default router;

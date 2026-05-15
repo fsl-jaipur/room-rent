@@ -36,28 +36,7 @@ export const toggleFavorite = async (
   }
 };
 
-// GET /api/favorites/ids  — returns just the listingId strings the user has liked
-export const getFavoriteIds = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const tenantId = (req as any).user?.id;
-    if (!tenantId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
-
-    const favs = await Favorite.find({ tenantId }).select("listingId").lean();
-    const ids = favs.map((f) => String(f.listingId));
-    res.status(200).json({ ids });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// GET /api/favorites  — returns liked listings with id, title, coverPhotoUrl
+// GET /api/favorites  — returns liked listings with id, title, coverPhotoUrl, plus ids array
 export const getFavorites = async (
   req: Request,
   res: Response,
@@ -109,7 +88,8 @@ export const getFavorites = async (
       };
     });
 
-    res.status(200).json({ favorites });
+    const ids = favorites.map((f) => f.listingId._id);
+    res.status(200).json({ favorites, ids });
   } catch (error) {
     next(error);
   }

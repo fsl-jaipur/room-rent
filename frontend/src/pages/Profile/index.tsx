@@ -108,7 +108,7 @@ export default function ProfilePage() {
         return;
       }
 
-      const result = await apiFetch<{ emailSent?: boolean }>("/api/auth/profile", {
+      const result = await apiFetch<{ emailSent?: boolean }>("/api/auth/profile-update", {
         method: "PATCH",
         body: JSON.stringify(changedFields),
       });

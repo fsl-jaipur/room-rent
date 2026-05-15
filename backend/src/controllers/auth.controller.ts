@@ -447,7 +447,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export const forgotPassword = async (
+export const password = async (req: Request, res: Response): Promise<void> => {
+  const action = req.query.action;
+  if (action === "forgot") return forgotPasswordHandler(req, res);
+  if (action === "reset") return resetPasswordHandler(req, res);
+  res.status(400).json({ error: "Invalid action. Use ?action=forgot or ?action=reset" });
+};
+
+const forgotPasswordHandler = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
@@ -539,7 +546,7 @@ export const forgotPassword = async (
   }
 };
 
-export const resetPassword = async (
+const resetPasswordHandler = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
@@ -703,7 +710,7 @@ export const googleLogin = async (
   }
 };
 
-export const me = async (req: Request, res: Response): Promise<void> => {
+export const checkToken = async (req: Request, res: Response): Promise<void> => {
   if (!req.user?.id) {
     ErrorResponses.unauthorized(res);
     return;
@@ -729,26 +736,3 @@ export const logout = (_req: Request, res: Response): void => {
   res.status(200).json({ message: "Logged out successfully" });
 };
 
-export const switchRole = async (req: Request, res: Response): Promise<void> => {
-  if (!req.user?.id) {
-    ErrorResponses.unauthorized(res);
-    return;
-  }
-  try {
-    const user = await User.findById(req.user.id);
-    if (!user || !user.isActive) {
-      ErrorResponses.unauthorized(res);
-      return;
-    }
-    if (user.role === "admin") {
-      res.status(403).json({ error: "Admin role cannot be changed" });
-      return;
-    }
-    user.role = user.role === "tenant" ? "landlord" : "tenant";
-    await user.save();
-    res.status(200).json({ user: getUserPublicData(user) });
-  } catch (error) {
-    console.error("Switch role error:", error);
-    ErrorResponses.internal(res);
-  }
-};

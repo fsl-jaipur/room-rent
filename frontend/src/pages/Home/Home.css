@@ -9,9 +9,8 @@
 }
 
 .home-header-logo {
-  width: auto;
-  height: 44px;
-  max-width: 200px;
+  width: 55px;
+  height: auto;
 }
 
 .home-header-actions {
@@ -103,7 +102,6 @@
 /* Responsive Design */
 @media (max-width: 768px) {
   .home-header-nav {
-    flex-direction: column;
     gap: 16px;
     align-items: flex-start;
   }

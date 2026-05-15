@@ -31,7 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshSession = useCallback(async () => {
     try {
-      const data = await apiFetch<{ user: User }>("/api/auth/me", {
+      const data = await apiFetch<{ user: User }>("/api/auth/check-token", {
         method: "GET",
       });
       setUser(data.user);

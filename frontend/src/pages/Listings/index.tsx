@@ -206,7 +206,7 @@ export default function ListingsPage() {
 
   useEffect(() => {
     if (!user) return;
-    apiFetch<{ ids: string[] }>("/api/favorites/ids", { method: "GET" })
+    apiFetch<{ ids: string[] }>("/api/favorites", { method: "GET" })
       .then((data) => setFavoriteIds(new Set(data.ids)))
       .catch(() => setFavoriteIds(new Set()));
   }, [user]);

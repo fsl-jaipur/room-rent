@@ -52,50 +52,62 @@ const resolveFullLocation = async (
   return null;
 };
 
-/**
- * SIMPLIFIED GET ALL LISTINGS - Using query utilities
- */
-export const getAllListings = async (
+export const getListings = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
+  const { listingId } = req.params;
+
+  if (listingId) {
+    try {
+      const item = await ListingsService.getListingById(listingId);
+      if (!item) {
+        res.status(404).json({ error: "Listing not found" });
+        return;
+      }
+      res.status(200).json({ listing: item });
+    } catch (error) {
+      next(error);
+    }
+    return;
+  }
+
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
 
-    // Use our simple query parsing utilities
     const filters = {
       search: typeof req.query.search === "string" ? req.query.search : undefined,
       city: typeof req.query.city === "string" ? req.query.city : undefined,
       minRent: Number.isFinite(Number(req.query.minRent)) ? Number(req.query.minRent) : undefined,
       maxRent: Number.isFinite(Number(req.query.maxRent)) ? Number(req.query.maxRent) : undefined,
-      maxOccupants: parseNumberArray(req.query.maxOccupants as string).length > 0 
-        ? parseNumberArray(req.query.maxOccupants as string) 
+      maxOccupants: parseNumberArray(req.query.maxOccupants as string).length > 0
+        ? parseNumberArray(req.query.maxOccupants as string)
         : undefined,
-      floorLevelId: parseNumberArray(req.query.floorLevelId as string).length > 0 
-        ? parseNumberArray(req.query.floorLevelId as string) 
+      floorLevelId: parseNumberArray(req.query.floorLevelId as string).length > 0
+        ? parseNumberArray(req.query.floorLevelId as string)
         : undefined,
-      furnishingTypeId: parseNumberArray(req.query.furnishingTypeId as string).length > 0 
-        ? parseNumberArray(req.query.furnishingTypeId as string) 
+      furnishingTypeId: parseNumberArray(req.query.furnishingTypeId as string).length > 0
+        ? parseNumberArray(req.query.furnishingTypeId as string)
         : undefined,
-      foodPreferenceId: parseNumberArray(req.query.foodPreferenceId as string).length > 0 
-        ? parseNumberArray(req.query.foodPreferenceId as string) 
+      foodPreferenceId: parseNumberArray(req.query.foodPreferenceId as string).length > 0
+        ? parseNumberArray(req.query.foodPreferenceId as string)
         : undefined,
-      coolingTypeId: parseNumberArray(req.query.coolingTypeId as string).length > 0 
-        ? parseNumberArray(req.query.coolingTypeId as string) 
+      coolingTypeId: parseNumberArray(req.query.coolingTypeId as string).length > 0
+        ? parseNumberArray(req.query.coolingTypeId as string)
         : undefined,
-      propertyTypeId: parseNumberArray(req.query.propertyTypeId as string).length > 0 
-        ? parseNumberArray(req.query.propertyTypeId as string) 
+      propertyTypeId: parseNumberArray(req.query.propertyTypeId as string).length > 0
+        ? parseNumberArray(req.query.propertyTypeId as string)
         : undefined,
-      projectStatusId: parseNumberArray(req.query.projectStatusId as string).length > 0 
-        ? parseNumberArray(req.query.projectStatusId as string) 
+      projectStatusId: parseNumberArray(req.query.projectStatusId as string).length > 0
+        ? parseNumberArray(req.query.projectStatusId as string)
         : undefined,
-      gender: parseStringArray(req.query.gender as string).length > 0 
-        ? parseStringArray(req.query.gender as string) 
+      gender: parseStringArray(req.query.gender as string).length > 0
+        ? parseStringArray(req.query.gender as string)
         : undefined,
-      allowSmoking: parseBooleanArray(req.query.allowSmoking as string).length > 0 
-        ? parseBooleanArray(req.query.allowSmoking as string) 
+      allowSmoking: parseBooleanArray(req.query.allowSmoking as string).length > 0
+        ? parseBooleanArray(req.query.allowSmoking as string)
         : undefined,
       sortBy: parseSortBy(req.query.sortBy as string),
     };
@@ -170,30 +182,6 @@ export const updateLocationData = async (
   }
 };
 
-export const getListingById = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    let { listingId } = req.params;
-    if (Array.isArray(listingId)) listingId = listingId[0];
-    if (!listingId) {
-      res.status(400).json({ error: "listingId is required" });
-      return;
-    }
-
-    const item = await ListingsService.getListingById(listingId);
-    if (!item) {
-      res.status(404).json({ error: "Listing not found" });
-      return;
-    }
-
-    res.status(200).json({ listing: item });
-  } catch (error) {
-    next(error);
-  }
-};
 
 export const createSingleListing = async (
   req: Request,
